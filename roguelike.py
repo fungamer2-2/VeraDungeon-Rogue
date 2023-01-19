@@ -949,7 +949,9 @@ class Player(Entity):
 		types = self.g.effect_types
 		if name in types:
 			typ = types[name]
-			if name not in self.effects:
+			if name in self.effects:
+				self.effects[name].duration += div_rand(duration, 2)
+			else:
 				self.effects[name] = (eff := typ(duration))
 				self.g.print_msg(eff.add_msg)
 	
