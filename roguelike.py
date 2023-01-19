@@ -380,7 +380,8 @@ class Game:
 		add_text("u - use item")
 		add_text("space - go down to next level (when standing on a \">\" symbol)")
 		add_text("? - brings up this menu again")
-		add_text(". - Wait a turn")
+		add_text(". - wait a turn")
+		add_text("j - view item descriptions at this tile")
 		add_line()
 		add_text("Press enter to continue")
 		screen = self.screen
