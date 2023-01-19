@@ -11,7 +11,7 @@ To play the game, all you need is a Python 3 Interpreter
 `q` and `z` keys to scroll the message log<br />
 `f` - view info of monster types in view<br />
 `u` - use an item from inventory (just type in the name of the item)<br />
-`r` - rest until HP full
+`r` - rest until HP full<br />
 `p` - pick up an item
 
 ### Gameplay
