@@ -553,8 +553,10 @@ class Game:
 				c |= curses.A_BOLD
 			if i == len(messages) - 1 and self.msg_cursor < max(0, len(self.msg_list) - self.get_max_lines()):
 				message += " (↓)"
-			screen.addstr(board.rows + i + offset + 1, 0, message, c)
-		
+			try:
+				screen.addstr(board.rows + i + offset + 1, 0, message, c)
+			except:
+				pass
 		wd = min(width, 60)
 		str_string = f"STR {self.player.STR}"
 		screen.addstr(0, wd - len(str_string), str_string)
@@ -755,7 +757,7 @@ class Haste(Effect):
 	def on_expire(self, player):
 		g = player.g
 		g.print_msg("A wave of lethargy sweeps over you.")
-		player.energy -= round(g.player.get_speed() * random.uniform(0.6, 1))
+		player.energy -= g.player.get_speed()
 
 class Resistance(Effect):
 	name = "Resistance"
@@ -770,6 +772,7 @@ class Invisible(Effect):
 		super().__init__(duration, "You become invisible.", "You become visible again.")
 		
 class Item:
+	description = "This is a generic item that does nothing special. If you see this, it's a bug."
 	
 	def __init__(self, name, symbol):
 		self.name = name
@@ -781,6 +784,7 @@ class Item:
 		return True
 
 class HealthPotion(Item):
+	description = "Consuming this potions increases the HP of the one who drinks it."
 	
 	def __init__(self):
 		super().__init__("health potion", "P")
@@ -797,6 +801,7 @@ class HealthPotion(Item):
 			return True
 			
 class SpeedPotion(Item):
+	description = "Consuming this potion temporarily speeds the movement of the one who drinks it. However, once the effect wears off, they won't be able to move for a turn, as a wave of lethargy passes over them."
 	
 	def __init__(self):
 		super().__init__("speed potion", "S")
@@ -809,7 +814,8 @@ class SpeedPotion(Item):
 		player.gain_effect("Haste", random.randint(30, 45))
 		return True
 		
-class ResistPotion(Item):
+class ResistPotion(Item):	
+	description = "Consuming this potion temporarily halves all damage taken by the one who drinks it."
 	
 	def __init__(self):
 		super().__init__("resistance potion", "R")
@@ -823,6 +829,7 @@ class ResistPotion(Item):
 		return True
 		
 class InvisibilityPotion(Item):
+	description = "Consuming this potion makes the one who drinks it temporarily invisible. However, attacking a monster will reduce the duration of this effect."
 	
 	def __init__(self):
 		super().__init__("invisibility potion", "C")
@@ -1155,7 +1162,7 @@ class Monster(Entity):
 			damage = dice(*attack.dmg)
 			if player.has_effect("Resistance"):
 				damage = div_rand(damage, 2)
-				if random.randint(1, 2) == 1:
+				if random.randint(1, 2) == 1: #Don't tell them every time
 					self.g.print_msg("Your resistance blocks some of the damage.")
 			if damage < 1:
 				damage = 1
@@ -1229,7 +1236,7 @@ class Monster(Entity):
 					damage = dice(*self.ranged_dam)
 					if player.has_effect("Resistance"):
 						damage = div_rand(damage, 2)
-						if random.randint(1, 2) == 1:
+						if random.randint(1, 2) == 1: #Don't tell them every time
 							self.g.print_msg("Your resistance blocks some of the damage.")
 					if damage < 1:
 						damage = 1
@@ -1556,8 +1563,13 @@ try:
 				refresh = True
 			elif char == "?":
 				g.help_menu()
-			elif char == ".":
+			elif char == ".": #Wait a turn
 				g.player.energy = 0
+			elif char == "j": #View descriptions of items on this tile
+				items = g.board.get(g.player.x, g.player.y).items
+				for item in items:
+					g.print_msg(f"{item.name} - {item.description}")
+				refresh = True
 		moved = g.player.energy < lastenergy
 		if moved:
 			g.do_turn()
