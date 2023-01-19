@@ -804,7 +804,8 @@ class SpeedPotion(Item):
 		g = player.g
 		g.print_msg("You drink a speed potion.")
 		player.gain_effect("Haste", random.randint(30, 45))
-
+		return True
+		
 class ResistPotion(Item):
 	
 	def __init__(self):
@@ -814,7 +815,8 @@ class ResistPotion(Item):
 		g = player.g
 		g.print_msg("You drink a resistance potion.")
 		player.gain_effect("Resistance", random.randint(30, 45))
-
+		return True
+		
 class InvisibilityPotion(Item):
 	
 	def __init__(self):
@@ -824,7 +826,8 @@ class InvisibilityPotion(Item):
 		g = player.g
 		g.print_msg("You drink an invisibility potion.")
 		player.gain_effect("Invisible", random.randint(45, 60))
-
+		return True
+		
 class Player(Entity):
 	
 	def __init__(self, g):
