@@ -754,7 +754,7 @@ class Haste(Effect):
 	def on_expire(self, player):
 		g = player.g
 		g.print_msg("A wave of lethargy sweeps over you.")
-		player.energy -= round(g.player.get_speed() * random.uniform(0.5, 1))
+		player.energy -= round(g.player.get_speed() * random.uniform(0.6, 1))
 
 class Resistance(Effect):
 	name = "Resistance"
@@ -803,6 +803,8 @@ class SpeedPotion(Item):
 	def use(self, player):
 		g = player.g
 		g.print_msg("You drink a speed potion.")
+		if player.has_effect("Haste"):
+			g.print_msg("Your speed begins to last even longer.")
 		player.gain_effect("Haste", random.randint(30, 45))
 		return True
 		
@@ -814,6 +816,8 @@ class ResistPotion(Item):
 	def use(self, player):
 		g = player.g
 		g.print_msg("You drink a resistance potion.")
+		if player.has_effect("Resistance"):
+			g.print_msg("Your resistance begins to last even longer.")
 		player.gain_effect("Resistance", random.randint(30, 45))
 		return True
 		
@@ -825,6 +829,8 @@ class InvisibilityPotion(Item):
 	def use(self, player):
 		g = player.g
 		g.print_msg("You drink an invisibility potion.")
+		if player.has_effect("Invisible"):
+			g.print_msg("Your invisibility begins to last even longer.")
 		player.gain_effect("Invisible", random.randint(45, 60))
 		return True
 		
