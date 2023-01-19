@@ -419,7 +419,8 @@ class Game:
 				place_potion(ResistPotion)
 			if random.randint(1, 5) == 1:
 				place_potion(SpeedPotion)
-		place_potion(InvisibilityPotion)
+			if random.randint(1, 6) == 1:
+				place_potion(InvisibilityPotion)
 		self.draw_board()
 		self.refresh_cache()
 	
