@@ -876,6 +876,9 @@ class Player(Entity):
 			raise RuntimeError("Could not generate a valid starting position for player")
 			
 	def move(self, dx, dy):
+		if self.dead:
+			self.energy = 0
+			return False
 		adj = []
 		if (m := self.g.get_monster(self.x-1, self.y)):
 			adj.append(m)
@@ -1002,6 +1005,8 @@ class Player(Entity):
 				gain = math.ceil(min(6 * 2**lev, 30 * 1.5**lev))
 				self.gain_exp(gain)
 				if not self.g.monsters:
+					if self.g.level == 1:
+						self.g.print_msg("Level complete! Move onto the stairs marked with a \">\", then press SPACE to go down to the next level.")
 					board = self.g.board
 					los_tries = 100
 					while True:
@@ -1088,12 +1093,6 @@ class Monster(Entity):
 		if attack is None:
 			attack = random.choice(self.attacks)
 		player = self.g.player
-		#dist = abs(xdist) + abs(ydist)
-#		if dist > 1 and not force:
-#			if (self.x, self.y) in player.fov:
-#				self.g.print_msg(f"The {mon} attacks empty space.")
-#			self.energy -= round(self.speed * 1.2)
-#			return
 		roll = dice(1, 20)
 		if player.has_effect("Invisible"):
 			roll = min(roll, dice(1, 20))
@@ -1230,7 +1229,8 @@ class Monster(Entity):
 				self.path_towards(*self.last_seen)
 				if self.track_timer > 0:
 					self.track_timer -= 1
-					if not player.has_effect("Invisible") and (self.x, self.y) == self.last_seen:
+					check = not (player.has_effect("Invisible") and (self.x, self.y) in player.fov)
+					if check and (self.x, self.y) == self.last_seen:
 						if dice(1, 20) + div_rand(player.DEX - 10, 2) < 10: #Stealth check
 							self.last_seen = (player.x, player.y)
 						else:
