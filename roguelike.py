@@ -26,20 +26,22 @@ def to_hit_prob(AC, hit_mod=0, adv=False, disadv=False):
 	elif disadv:
 		res = res**2
 	return round(res, 3)
+	
+def round_half_up(x):
 
 def display_prob(perc):
 	if perc <= 0:
 		return "0%"
 	if perc >= 100:
 		return "100%"
-	if perc < 0.5:
+	if perc <= 0.5:
 		return "<1%"
-	if perc > 99.5:
+	if perc >= 99.5:
 		return ">99%"
 	if perc < 50:
-		perc = math.ceil(perc)
+		perc = math.ceil(perc - 0.5)
 	else:
-		perc = int(perc)
+		perc = math.floor(perc + 0.5)
 	return f"{perc}%"
 
 class Tile:
@@ -419,7 +421,7 @@ class Game:
 				place_potion(ResistPotion)
 			if random.randint(1, 5) == 1:
 				place_potion(SpeedPotion)
-			if random.randint(1, 6) == 1:
+			if random.randint(1, 6) == 1:		
 				place_potion(InvisibilityPotion)
 		self.draw_board()
 		self.refresh_cache()
@@ -926,7 +928,7 @@ class Player(Entity):
 				m.reset_check_timer()
 				if not m.is_aware:
 					roll = dice(1, 20)
-					if (m.x, m.y) in self.fov and (roll == 1 or roll + div_rand(self.DEX, 2) + mod < m.passive_perc):
+					if (m.x, m.y) in self.fov and (roll == 1 or roll + div_rand(self.DEX - 10, 2) + mod < m.passive_perc):
 						m.is_aware = True
 						m.last_seen = (self.x, self.y)
 		self.did_attack = False
@@ -944,6 +946,8 @@ class Player(Entity):
 		if sneak_attack:
 			roll = max(roll, dice(1, 20))
 			self.g.print_msg(f"You catch the {mon.name} completely unaware!")
+		elif self.has_effect("Invisible"):
+			roll = max(roll, dice(1, 20))
 		crit = False
 		if roll == 1:
 			hits = False
@@ -1143,6 +1147,8 @@ class Monster(Entity):
 					time.sleep(0.08)
 				self.g.clear_projectile()
 				roll = dice(1, 20)
+				if player.has_effect("Invisible"):
+					roll = min(roll, dice(1, 20))
 				bonus = self.to_hit
 				dodge_mod = player.get_ac_bonus()
 				AC = 10 + dodge_mod
@@ -1435,13 +1441,14 @@ try:
 					str_mod = (g.player.STR - 10)/2
 					for m in fov_mons:
 						hit_prob = to_hit_prob(m.AC, str_mod)
-						hit_prob_unaware = to_hit_prob(m.AC, str_mod, adv=True)
+						hit_adv = to_hit_prob(m.AC, str_mod, adv=True) #Probability with advantage
 						#TODO: Remove to_hit from the Attack object as they seem to be the same for monsters
 						#The to_hit can just be linked to the monster value instead
 						be_hit = to_hit_prob(10 + ac_bonus, m.to_hit)
+						be_hit_disadv = to_hit_prob(10 + ac_bonus, m.to_hit, disadv=True)
 						string = f"{m.symbol} - {m.name} "
-						string += f"| To hit: {display_prob(hit_prob*100)} ({display_prob(hit_prob_unaware*100)} if unaware)"
-						string += f" | {display_prob(be_hit*100)} to hit you"
+						string += f"| To hit: {display_prob(hit_prob*100)} ({display_prob(hit_adv*100)} w/adv.)"
+						string += f" | {display_prob(be_hit*100)} to hit you ({display_prob(be_hit_disadv*100)} w/disadv.)"
 						string += " | Attacks: "
 						for i in range(len(m.attacks)):
 							att = m.attacks[i] 
