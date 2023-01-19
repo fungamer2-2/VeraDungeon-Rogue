@@ -27,6 +27,8 @@ def to_hit_prob(AC, hit_mod=0, adv=False, disadv=False):
 		res = res**2
 	return round(res, 3)
 	
+def round_half_up(x):
+
 def display_prob(perc):
 	if perc <= 0:
 		return "0%"
@@ -1406,17 +1408,17 @@ try:
 				g.player.move(-1, 0)
 			elif char == "d":
 				g.player.move(1, 0)
-			elif char == "q":
+			elif char == "q": #Scroll up
 				g.msg_cursor -= 1
 				if g.msg_cursor < 0:
 					g.msg_cursor = 0
 				refresh = True
-			elif char == "z":
+			elif char == "z": #Scroll down
 				g.msg_cursor += 1
 				if g.msg_cursor > (limit := max(0, len(g.msg_list) - g.get_max_lines())):
 					g.msg_cursor = limit
 				refresh = True
-			elif char == "f":
+			elif char == "f": #View info of monster types in view
 				fov_mons = []
 				for m in g.monsters:
 					if (m.x, m.y) in g.player.fov:
@@ -1455,7 +1457,7 @@ try:
 							if i < len(m.attacks) - 1:
 								string += ", "
 						g.print_msg(string)
-			elif char == "u":
+			elif char == "u": #Use an item
 				if g.player.inventory:
 					g.print_msg("Which item would you like to use?")
 					strings = list(map(lambda item: item.name, g.player.inventory))
@@ -1469,10 +1471,10 @@ try:
 				else:
 					g.print_msg("You don't have anything to use.")
 					refresh = True
-			elif char == "r" and g.player.HP < g.player.MAX_HP:
+			elif char == "r" and g.player.HP < g.player.MAX_HP: #Rest and wait for HP to recover
 				g.print_msg("You begin resting.")
 				g.player.resting = True
-			elif char == "p":
+			elif char == "p": #Pick up item
 				tile = g.board.get(g.player.x, g.player.y)
 				if tile.items:
 					item = tile.items.pop()
@@ -1482,7 +1484,7 @@ try:
 				else:
 					g.print_msg("There's nothing to pick up.")
 					refresh = True
-			elif char == " ":
+			elif char == " ": #Go down to next level
 				if g.board.get(g.player.x, g.player.y).stair:
 					time.sleep(0.3)
 					g.generate_level()
