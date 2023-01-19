@@ -1,4 +1,10 @@
-import curses, random, time, textwrap
+try:
+	import curses
+except:
+	print("Sorry, Windows doesn't support the curses module.")
+	exit()
+	
+import random, time, textwrap
 import math
 from collections import deque
 from itertools import islice, chain
@@ -49,6 +55,7 @@ class Tile:
 		assert len(symbol) == 1, "Symbol must be exactly one character"
 		self.symbol = symbol
 		self.revealed = False
+		self.walked = False
 		self.stair = stair
 		self.items = []
 
@@ -464,7 +471,7 @@ class Game:
 		board = self.board
 		screen.clear()
 		p = self.player
-		screen.addstr(0, 0, f"HP {p.HP}/{p.MAX_HP} | LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
+		screen.addstr(0, 0, f"HP {p.HP}/{p.MAX_HP} | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
 		fov = self.player.fov
 		for point in fov:
 			board.get(*point).revealed = True
@@ -519,10 +526,11 @@ class Game:
 				message += " (↓)"
 			screen.addstr(board.rows + i + offset + 1, 0, message, c)
 		
+		wd = min(width, 60)
 		str_string = f"STR {self.player.STR}"
-		screen.addstr(0, width - len(str_string), str_string)
+		screen.addstr(0, wd - len(str_string), str_string)
 		dex_string = f"DEX {self.player.DEX}"
-		screen.addstr(1, width - len(dex_string), dex_string)
+		screen.addstr(1, wd - len(dex_string), dex_string)
 		
 		try:
 			screen.move(board.rows + offset, 0)
@@ -825,7 +833,7 @@ class Player(Entity):
 		return int(speed)
 		
 	def max_exp(self):
-		return 40 + (self.level - 1) * 15
+		return 40 + (self.level - 1) * 10
 		
 	def gain_exp(self, amount):
 		self.exp += amount
@@ -834,7 +842,12 @@ class Player(Entity):
 			self.exp -= self.max_exp()
 			self.level += 1
 			if self.level % 2 == 0:
-				if random.randint(1, 2) == 1:	
+				diff = self.STR - self.DEX
+				absdiff = abs(diff)
+				changestr = random.randint(1, absdiff+2) == 1
+				if diff < 0:
+					changestr = not changestr		
+				if changestr:	
 					self.STR += 1
 				else:
 					self.DEX += 1
@@ -872,7 +885,6 @@ class Player(Entity):
 			adj.append(m)
 		if (m := self.g.get_monster(self.x, self.y+1)):
 			adj.append(m)
-		
 		if not super().move(dx, dy):
 			if self.g.monster_at(self.x + dx, self.y + dy):
 				self.attack(dx, dy)
@@ -880,6 +892,17 @@ class Player(Entity):
 			return False
 		self.fov = self.calc_fov()
 		speed = self.get_speed()
+		board = self.g.board
+		if dx != 0 or dy != 0:
+			tile = board.get(self.x, self.y)
+			if not tile.walked:
+				tile.walked = True
+				if tile.items:
+					strings = list(map(lambda item: item.name, tile.items))
+					if len(strings) == 1:
+						self.g.print_msg(f"You see a {strings[0]} here.")
+					else:
+						self.g.print_msg(f"At this location you see the following items: {', '.join(strings)}")
 		for m in adj:
 			dist = abs(self.x - m.x) + abs(self.y - m.y)
 			if m.is_aware and m.sees_player() and dist == 2 and (m.speed > speed or (m.speed == speed and random.randint(1, 2) == 1)) and random.randint(1, 3) == 1:
@@ -976,7 +999,7 @@ class Player(Entity):
 				self.g.print_msg(f"The {mon.name} dies!", "green")
 				self.g.remove_monster(mon)
 				lev = mon.diff - 1
-				gain = math.ceil(min(3 * 2**lev, 25 * 1.5**lev))
+				gain = math.ceil(min(6 * 2**lev, 30 * 1.5**lev))
 				self.gain_exp(gain)
 				if not self.g.monsters:
 					board = self.g.board
