@@ -7,7 +7,7 @@ To play the game, all you need is a Python 3 Interpreter
 (Due to use of walrus operators, this doesn't work for Python versions below 3.8, however this game has only been tested on Python 3.9)
 
 ### Controls<br />
-`wasd` keys to move around
+`wasd` keys to move around<br />
 `q` and `z` keys to scroll the message log<br />
 `f` - view info of monster types in view<br />
 `u` - use an item from inventory (just type in the name of the item)<br />
