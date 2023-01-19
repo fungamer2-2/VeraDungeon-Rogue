@@ -1441,8 +1441,7 @@ class GiantEagle(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "giant eagle", "E", 52, False)
-
-					
+						
 g = Game()
 try:
 	g.print_msg("Press \"?\" if you want to view the controls.")
@@ -1582,3 +1581,13 @@ except Exception as e:
 		print(f"The error message has been written to {filename}")
 	except:
 		pass
+except KeyboardInterrupt:
+	curses.nocbreak()
+	curses.echo()
+	curses.endwin()
+	import os
+	os.system("clear")
+	raise
+else:
+	curses.nocbreak()
+	curses.echo()
