@@ -360,7 +360,35 @@ class Game:
 		self.level = 1
 		types = Effect.__subclasses__()
 		self.effect_types = {t.name:t for t in types}
-		
+	
+	def help_menu(self):
+		size = get_terminal_size()
+		termwidth = size.columns
+		msg = []
+		def add_text(txt=""):
+			nonlocal msg
+			txt = str(txt)
+			msg += textwrap.wrap(txt, termwidth)
+		def add_line():
+			msg.append("")
+			
+		add_text("Use the wasd keys to move")
+		add_text("Use the q and z keys to scroll the message log")
+		add_text("f - view info about monsters currently in view")
+		add_text("r - rest until HP is recovered")
+		add_text("p - pick up item")
+		add_text("u - use item")
+		add_text("space - go down to next level (when standing on a \">\" symbol)")
+		add_text("? - brings up this menu again")
+		add_line()
+		add_text("Press enter to continue")
+		screen = self.screen
+		screen.clear()
+		screen.addstr(0, 0, "\n".join(msg))
+		screen.refresh()
+		while screen.getch() != 10: pass
+		self.draw_board()
+			
 	def set_projectile_pos(self, x, y):
 		self.projectile = (x, y)
 	
@@ -1406,6 +1434,7 @@ class GiantEagle(Monster):
 					
 g = Game()
 try:
+	g.print_msg("Press \"?\" if you want to view the controls.")
 	g.generate_level()
 	while not g.player.dead:
 		refresh = False
@@ -1514,6 +1543,8 @@ try:
 				else:
 					g.print_msg("You can't go down here.")
 				refresh = True
+			elif char == "?":
+				g.help_menu()
 		moved = g.player.energy < lastenergy
 		if moved:
 			g.do_turn()
