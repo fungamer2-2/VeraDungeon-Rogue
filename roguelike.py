@@ -419,6 +419,7 @@ class Game:
 				place_potion(ResistPotion)
 			if random.randint(1, 5) == 1:
 				place_potion(SpeedPotion)
+		place_potion(InvisibilityPotion)
 		self.draw_board()
 		self.refresh_cache()
 	
@@ -476,7 +477,10 @@ class Game:
 				color = 0
 				if (col, row) == (self.player.x, self.player.y):
 					s = "P"
-					color = curses.A_REVERSE
+					if not self.player.has_effect("Invisible"):
+						color = curses.A_REVERSE
+					else:
+						color = curses.color_pair(4)
 				elif tile.items:
 					item = tile.items[-1]
 					s = item.symbol
@@ -721,6 +725,11 @@ class Resistance(Effect):
 	def __init__(self, duration):
 		super().__init__(duration, "You feel more resistant to damage.", "You feel vulnerable again.")
 	
+class Invisible(Effect):
+	name = "Invisible"
+	
+	def __init__(self, duration):
+		super().__init__(duration, "You become invisible.", "You become visible again.")
 		
 class Item:
 	
@@ -768,6 +777,16 @@ class ResistPotion(Item):
 		g = player.g
 		g.print_msg("You drink a resistance potion.")
 		player.gain_effect("Resistance", random.randint(30, 45))
+
+class InvisibilityPotion(Item):
+	
+	def __init__(self):
+		super().__init__("invisibility potion", "C")
+		
+	def use(self, player):
+		g = player.g
+		g.print_msg("You drink an invisibility potion.")
+		player.gain_effect("Invisible", random.randint(45, 60))
 
 class Player(Entity):
 	
@@ -862,9 +881,9 @@ class Player(Entity):
 		speed = self.get_speed()
 		for m in adj:
 			dist = abs(self.x - m.x) + abs(self.y - m.y)
-			if m.is_aware and dist == 2 and (m.speed > speed or (m.speed == speed and random.randint(1, 2) == 1)) and random.randint(1, 3) == 1:
+			if m.is_aware and m.sees_player() and dist == 2 and (m.speed > speed or (m.speed == speed and random.randint(1, 2) == 1)) and random.randint(1, 3) == 1:
 				self.g.print_msg(f"As you move away from {m.name}, it makes an opportunity attack!", "yellow")
-				m.melee_attack_player()
+				m.melee_attack_player(force=True)
 		self.energy -= 30
 		return True
 		
@@ -878,6 +897,15 @@ class Player(Entity):
 	
 	def has_effect(self, name):
 		return name in self.effects
+		
+	def adjust_duration(self, effect, amount):
+		if effect in self.effects:
+			eff = self.effects[effect]
+			eff.duration += amount
+			if eff.duration <= 0:
+				del self.effects[effect]
+				self.g.print_msg(eff.rem_msg)
+				eff.on_expire(self)
 	
 	def do_turn(self):	
 		if self.HP < self.MAX_HP:
@@ -885,22 +913,21 @@ class Player(Entity):
 			if self.ticks % 6 == 0:
 				self.HP += 1
 		for e in list(self.effects.keys()):
-			eff = self.effects[e]
-			eff.duration -= 1
-			if eff.duration <= 0:
-				del self.effects[e]
-				self.g.print_msg(eff.rem_msg)
-				eff.on_expire(self)
-		pen = 0
+			self.adjust_duration(e, -1)
+		mod = 0
 		if self.did_attack:
-			pen += 4
-		
+			mod -= 5
+		if self.has_effect("Invisible"):
+			mod += 5
 		for m in self.g.monsters:
 			m.check_timer -= 1
 			if m.check_timer <= 0 or self.did_attack:
 				m.reset_check_timer()
-				if (m.x, m.y) in self.fov and dice(1, 20) + div_rand(self.DEX, 2) - pen < m.passive_perc:
-					m.is_aware = True
+				if not m.is_aware:
+					roll = dice(1, 20)
+					if (m.x, m.y) in self.fov and (roll == 1 or roll + div_rand(self.DEX, 2) + mod < m.passive_perc):
+						m.is_aware = True
+						m.last_seen = (self.x, self.y)
 		self.did_attack = False
 				
 	def attack(self, dx, dy):
@@ -910,7 +937,7 @@ class Player(Entity):
 			self.energy -= self.get_speed()
 			return
 		mon = self.g.get_monster(x, y)
-		self.energy -= min(self.get_speed(), 50)
+		self.energy -= min(self.get_speed(), 45)
 		roll = dice(1, 20)
 		sneak_attack = not mon.is_aware
 		if sneak_attack:
@@ -924,8 +951,9 @@ class Player(Entity):
 			crit = dice(1, 20) + div_rand(self.STR - 10, 2) >= mon.AC
 		else:
 			hits = roll + div_rand(self.STR - 10, 2) >= mon.AC
-		mon.is_aware = True
+		mon.on_player_attacked()
 		self.did_attack = True
+		self.adjust_duration("Invisible", -random.randint(0, 6))
 		if not hits:
 			self.g.print_msg(f"Your attack misses the {mon.name}.")
 		else:
@@ -946,7 +974,7 @@ class Player(Entity):
 				self.g.remove_monster(mon)
 				lev = mon.diff - 1
 				gain = math.ceil(min(3 * 2**lev, 25 * 1.5**lev))
-				self.gain_exp(math.ceil(3 * mon.diff**1.5))
+				self.gain_exp(gain)
 				if not self.g.monsters:
 					board = self.g.board
 					los_tries = 100
@@ -1028,13 +1056,21 @@ class Monster(Entity):
 		player = self.g.player
 		if not board.is_clear_path((self.x, self.y), (player.x, player.y)):
 			return False
-		return random.randint(1, 2) == 1
+		return random.randint(1, 100) <= 40
 		
-	def melee_attack_player(self, attack=None):
+	def melee_attack_player(self, attack=None, force=False):
 		if attack is None:
 			attack = random.choice(self.attacks)
 		player = self.g.player
+		#dist = abs(xdist) + abs(ydist)
+#		if dist > 1 and not force:
+#			if (self.x, self.y) in player.fov:
+#				self.g.print_msg(f"The {mon} attacks empty space.")
+#			self.energy -= round(self.speed * 1.2)
+#			return
 		roll = dice(1, 20)
+		if player.has_effect("Invisible"):
+			roll = min(roll, dice(1, 20))
 		ac_mod = player.get_ac_bonus()
 		AC = 10 + ac_mod
 		bonus = attack.to_hit
@@ -1064,11 +1100,32 @@ class Monster(Entity):
 	def do_melee_attack(self):
 		for att in self.attacks:
 			self.melee_attack_player(att)
+			
+	def sees_player(self):
+		player = self.g.player
+		if player.has_effect("Invisible"):
+			return False
+		return (self.x, self.y) in player.fov
+		
+	def on_player_attacked(self):
+		player = self.g.player
+		self.is_aware = True
+		self.last_seen = (player.x, player.y)
 		
 	def actions(self):
 		board = self.g.board
 		player = self.g.player
-		if (self.x, self.y) in player.fov and self.is_aware:
+		guessplayer = False
+		if self.is_aware:
+			if player.has_effect("Invisible"):
+				guessplayer = dice(1, 20) >= dice(1, 20) + div_rand(player.DEX - 10, 2)
+				xdist = player.x - self.x
+				ydist = player.y - self.y
+				dist = abs(xdist) + abs(ydist)
+				guessplayer &= random.randint(1, 3 - (dist <= 1)*2) == 1
+			else:
+				guessplayer = True		
+		if self.is_aware and (self.sees_player() or guessplayer):
 			self.last_seen = (player.x, player.y)
 			xdist = player.x - self.x
 			ydist = player.y - self.y
@@ -1124,45 +1181,62 @@ class Monster(Entity):
 					maintains =  board.line_of_sight((self.x, self.y + dy), (player.x, player.y))
 					if not (maintains and self.move(0, dy)):
 						self.move(dx, 0)
-		elif self.last_seen:
-			self.path_towards(*self.last_seen)
-			if self.track_timer > 0:
-				self.track_timer -= 1
-				if (self.x, self.y) == self.last_seen:
-					if random.randint(1, 2) == 1:
-						self.last_seen = (player.x, player.y)
+		else:
+			if player.has_effect("Invisible") and (self.x, self.y) == self.last_seen:
+				tries = 100
+				while tries > 0:
+					dx = random.randint(-2, 2)
+					dy = random.randint(-2, 2)
+					if (dx, dy) == (0, 0):
+						continue
+					xp = self.x + dx
+					yp = self.y + dy
+					if (xp < 0 or xp >= board.cols) or (yp < 0 or yp >= board.cols):
+						continue
+					if board.blocks_sight(xp, yp) or not board.line_of_sight((self.x, self.y), (xp, yp)):
+						tries -= 1
 					else:
-						self.last_seen = None
-						self.track_timer = 0
-						self.is_aware = False
-						self.dir = None
-			else:
-				self.last_seen = None	
-		elif random.randint(1, 6) < 6:
-			choose_new = self.dir is None or (random.randint(1, 3) == 1 or not self.move(*self.dir))
-			if choose_new:
-				if self.dir is None:
-					dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
-					random.shuffle(dirs)
-					for d in dirs:
-						if self.move(*d):
-							self.dir = d
-							break
+						self.last_seen = (xp, yp)
+						break
+			if self.last_seen:
+				self.path_towards(*self.last_seen)
+				if self.track_timer > 0:
+					self.track_timer -= 1
+					if not player.has_effect("Invisible") and (self.x, self.y) == self.last_seen:
+						if dice(1, 20) + div_rand(player.DEX - 10, 2) < 10: #Stealth check
+							self.last_seen = (player.x, player.y)
+						else:
+							self.last_seen = None
+							self.track_timer = 0
+							self.is_aware = False
+							self.dir = None
 				else:
-					if self.dir in [(-1, 0), (1, 0)]:
-						dirs = [(0, 1), (0, -1)]
+					self.last_seen = None	
+			elif random.randint(1, 6) < 6:
+				choose_new = self.dir is None or (random.randint(1, 3) == 1 or not self.move(*self.dir))
+				if choose_new:
+					if self.dir is None:
+						dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
+						random.shuffle(dirs)
+						for d in dirs:
+							if self.move(*d):
+								self.dir = d
+								break
 					else:
-						dirs = [(-1, 0), (1, 0)]
-					random.shuffle(dirs)
-					for d in dirs:
-						if self.move(*d):
-							self.dir = d
-							break
-					else:
-						if not self.move(*self.dir):
-							d = (-self.dir[0], -self.dir[1])
-							self.move(*d)
-							self.dir = d
+						if self.dir in [(-1, 0), (1, 0)]:
+							dirs = [(0, 1), (0, -1)]
+						else:
+							dirs = [(-1, 0), (1, 0)]
+						random.shuffle(dirs)
+						for d in dirs:
+							if self.move(*d):
+								self.dir = d
+								break
+						else:
+							if not self.move(*self.dir):
+								d = (-self.dir[0], -self.dir[1])
+								self.move(*d)
+								self.dir = d
 			
 
 #Balance:
@@ -1418,11 +1492,22 @@ try:
 				g.draw_board()
 		elif refresh:
 			g.draw_board()
-		
 except Exception as e:
 	curses.nocbreak()
 	curses.echo()
 	curses.endwin()
-	import os
+	import os, traceback
 	os.system("clear")
-	raise
+	print("An error has occured:")
+	print()
+	msg = traceback.format_exception(type(e), e, e.__traceback__)
+	msg = "".join(msg)
+	print(msg)
+	print()
+	filename = "roguelike_error.log"
+	f = open(filename, "w")
+	try:
+		f.write(msg)
+		print(f"The error message has been written to {filename}")
+	except:
+		pass
