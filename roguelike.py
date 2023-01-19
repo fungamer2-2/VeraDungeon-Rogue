@@ -27,8 +27,6 @@ def to_hit_prob(AC, hit_mod=0, adv=False, disadv=False):
 		res = res**2
 	return round(res, 3)
 	
-def round_half_up(x):
-
 def display_prob(perc):
 	if perc <= 0:
 		return "0%"
