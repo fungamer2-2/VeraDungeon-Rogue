@@ -1204,6 +1204,7 @@ class Monster(Entity):
 		
 	def can_guess_invis(self):
 		#Can we correctly guess the player's position when invisible?
+		player = self.g.player
 		guessplayer = dice(1, 20) + div_rand(self.WIS - 10, 2) >= dice(1, 20) + div_rand(player.DEX - 10, 2)
 		xdist = player.x - self.x
 		ydist = player.y - self.y
