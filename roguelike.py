@@ -909,6 +909,21 @@ class Player(Entity):
 					self.STR += 1
 				else:
 					self.DEX += 1
+			if self.level % 3 == 0:
+				self.g.print_msg(f"You leveled up to level {(self.level)}!", "green")
+				old_level = self.level
+				while True:
+					user = self.g.input("Would you like to increase (S)TR or (D)EX?")
+					user = user.upper()
+					if user == "S":
+						self.STR += 1
+						break
+					elif user == "D":
+						self.DEX += 1
+						break
+					else:
+						self.g.print_msg("Please enter \"S\" or \"D\"")
+						
 		if self.level > old_level:
 			self.g.print_msg(f"You leveled up to level {(self.level)}!", "green")
 			self.MAX_HP = 100 + (self.level - 1)*15
@@ -1214,6 +1229,7 @@ class Monster(Entity):
 		return guessplayer
 		
 	def guess_rand_invis(self):
+		board = self.g.board
 		tries = 100
 		while tries > 0:
 			dx = random.randint(-2, 2)
