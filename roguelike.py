@@ -19,7 +19,11 @@ def div_rand(x, y):
 		sign = -1
 		x = abs(x)
 		y = abs(y)
-	return sign * x//y + (random.randint(1, y) <= x)
+	mod = x % y
+	return sign * x//y + (random.randint(1, y) <= mod)
+
+def mult_rand_frac(num, x, y):
+	return div_rand(num*x, y)
 
 def to_hit_prob(AC, hit_mod=0, adv=False, disadv=False):
 	if adv and disadv:
@@ -480,6 +484,11 @@ class Game:
 			del self.monsters[ind]
 			self.board.unset_cache(m.x, m.y)
 			
+	def print_msg_if_sees(self, pos, msg, color=None):
+		assert len(pos) == 2 and type(pos) == tuple
+		if pos in self.player.fov:
+			self.print_msg(msg, color=None)
+			
 	def print_msg(self, msg, color=None):
 		m = {
 			"red": 1,
@@ -913,7 +922,7 @@ class Player(Entity):
 			self.g.print_msg("You have died!", "red")
 			self.dead = True
 		elif self.HP <= self.MAX_HP // 4:
-			self.g.print_msg("WARNING: Your HP is low!", "red")
+			self.g.print_msg("*** WARNING: Your HP is low! ***", "red")
 
 	def rand_place(self):
 		self.x = 0
@@ -1034,11 +1043,15 @@ class Player(Entity):
 		if not hits:
 			self.g.print_msg(f"Your attack misses the {mon.name}.")
 		else:
-			dam = random.randint(1, 6)
+			dam = dice(1, 6)
 			if crit:
-				dam += random.randint(1, 6)
+				dam += dice(1, 6)
 			if sneak_attack:
-				dam += random.randint(1, 6)
+				#Roll (1+(level-1)/4)d6 bonus damage
+				#A non-integer amount of dice, for example, (1.5)d6 is simulated like 1d6 + 0.5*(1d6)
+				scale_int = 1 + (self.level - 1) // 4
+				scale_mod = (self.level - 1) % 4
+				dam += dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, 4)
 			dam += div_rand(self.STR - 10, 2)
 			if dam < 1:
 				dam = 1
@@ -1089,6 +1102,7 @@ class Monster(Entity):
 	AC = 10
 	to_hit = 0
 	passive_perc = 11
+	WIS = 10
 	attacks = [Attack((1, 3), 0)]
 	
 	def __init__(self, g, name="monster", symbol=None, HP=10, ranged=None, ranged_dam=(2, 3)):
@@ -1185,24 +1199,44 @@ class Monster(Entity):
 		self.is_aware = True
 		self.last_seen = (player.x, player.y)
 		
+	def can_guess_invis(self):
+		#Can we correctly guess the player's position when invisible?
+		guessplayer = dice(1, 20) + div_rand(self.WIS - 10, 2) >= dice(1, 20) + div_rand(player.DEX - 10, 2)
+		xdist = player.x - self.x
+		ydist = player.y - self.y
+		dist = abs(xdist) + abs(ydist)
+		chance = 2 if dist <= 1 else 6
+		guessplayer = guessplayer and random.randint(1, chance	) == 1	
+		return guessplayer
+		
+	def guess_rand_invis(self):
+		tries = 100
+		while tries > 0:
+			dx = random.randint(-2, 2)
+			dy = random.randint(-2, 2)
+			if (dx, dy) == (0, 0):
+				continue
+			xp = self.x + dx
+			yp = self.y + dy
+			if (xp < 0 or xp >= board.cols) or (yp < 0 or yp >= board.cols):
+				continue
+			if board.blocks_sight(xp, yp) or not board.line_of_sight((self.x, self.y), (xp, yp)):
+				tries -= 1
+			else:
+				self.last_seen = (xp, yp)
+				break	
+		
 	def actions(self):
 		board = self.g.board
 		player = self.g.player
 		guessplayer = False
-		if self.is_aware:
-			if player.has_effect("Invisible"):
-				guessplayer = dice(1, 20) >= dice(1, 20) + div_rand(player.DEX - 10, 2)
-				xdist = player.x - self.x
-				ydist = player.y - self.y
-				dist = abs(xdist) + abs(ydist)
-				guessplayer &= random.randint(1, 3 - (dist <= 1)*2) == 1
-			else:
-				guessplayer = True		
+		if self.is_aware and player.has_effect("Invisible"):
+			guessplayer = self.can_guess_invis()
 		if self.is_aware and (self.sees_player() or guessplayer):
-			self.last_seen = (player.x, player.y)
 			xdist = player.x - self.x
 			ydist = player.y - self.y
 			dist = abs(xdist) + abs(ydist)
+			self.last_seen = (player.x, player.y)
 			self.track_timer = random.randint(25, 65)
 			if dist <= 1:
 				self.energy -= self.speed
@@ -1258,28 +1292,17 @@ class Monster(Entity):
 						self.move(dx, 0)
 		else:
 			if player.has_effect("Invisible") and (self.x, self.y) == self.last_seen:
-				tries = 100
-				while tries > 0:
-					dx = random.randint(-2, 2)
-					dy = random.randint(-2, 2)
-					if (dx, dy) == (0, 0):
-						continue
-					xp = self.x + dx
-					yp = self.y + dy
-					if (xp < 0 or xp >= board.cols) or (yp < 0 or yp >= board.cols):
-						continue
-					if board.blocks_sight(xp, yp) or not board.line_of_sight((self.x, self.y), (xp, yp)):
-						tries -= 1
-					else:
-						self.last_seen = (xp, yp)
-						break
+				self.guess_rand_invis()
 			if self.last_seen:
-				self.path_towards(*self.last_seen)
 				if self.track_timer > 0:
 					self.track_timer -= 1
-					check = not (player.has_effect("Invisible") and (self.x, self.y) in player.fov)
-					if check and (self.x, self.y) == self.last_seen:
-						if dice(1, 20) + div_rand(player.DEX - 10, 2) < 10: #Stealth check
+					if player.has_effect("Invisible"):
+						check = dice(1, 20) + div_rand(player.DEX - 10, 2) < 10 + + div_rand(self.WIS - 10, 2)
+					else:
+						check = True
+					self.path_towards(*self.last_seen)
+					if (self.x, self.y) == self.last_seen and check:
+						if dice(1, 20) + div_rand(player.DEX - 10, 2) < 10 + div_rand(self.WIS - 10, 2):
 							self.last_seen = (player.x, player.y)
 						else:
 							self.last_seen = None
@@ -1287,7 +1310,10 @@ class Monster(Entity):
 							self.is_aware = False
 							self.dir = None
 				else:
-					self.last_seen = None	
+					self.last_seen = None
+					self.track_timer = 0
+					self.is_aware = False
+					self.dir = None	
 			elif random.randint(1, 6) < 6:
 				choose_new = self.dir is None or (random.randint(1, 3) == 1 or not self.move(*self.dir))
 				if choose_new:
@@ -1321,6 +1347,7 @@ class Bat(Monster):
 	min_level = 1
 	diff = 1
 	AC = 12
+	WIS = 12
 	attacks = [
 		Attack((1, 3), 0, "The {0} bites you")
 	]	
@@ -1335,6 +1362,7 @@ class Lizard(Monster):
 	diff = 1
 	speed = 20
 	passive_perc = 9
+	WIS = 8
 	attacks = [
 		Attack((1, 3), 0, "The {0} bites you")
 	]
@@ -1346,6 +1374,7 @@ class Kobold(Monster):
 	diff = 2
 	min_level = 3
 	AC = 12
+	WIS = 7
 	to_hit = 4
 	passive_perc = 8
 	attacks = [
@@ -1373,6 +1402,7 @@ class GiantBat(Monster):
 	speed = 60
 	min_level = 8
 	AC = 13
+	WIS = 12
 	to_hit = 4
 	attacks = [
 		Attack((2, 6), 4, "The {0} bites you")
@@ -1399,6 +1429,7 @@ class GiantGoat(Monster):
 	speed = 40
 	min_level = 12
 	AC = 11
+	WIS = 12
 	to_hit = 5
 	attacks = [
 		Attack((4, 4), 4, "The {0} rams you")
@@ -1412,6 +1443,7 @@ class BlackBear(Monster):
 	speed = 40
 	min_level = 12
 	AC = 11
+	WIS = 2
 	to_hit = 3
 	passive_perc = 13
 	attacks = [
@@ -1427,6 +1459,7 @@ class BrownBear(Monster):
 	speed = 40
 	min_level = 15
 	AC = 11
+	WIS = 12
 	to_hit = 3
 	passive_perc = 13
 	attacks = [
@@ -1439,6 +1472,7 @@ class BrownBear(Monster):
 
 class GiantEagle(Monster):
 	AC = 13
+	WIS = 12
 	diff = 5
 	min_level = 16
 	to_hit = 5
