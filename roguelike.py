@@ -37,6 +37,13 @@ def to_hit_prob(AC, hit_mod=0, adv=False, disadv=False):
 		res = res**2
 	return round(res, 3)
 	
+def calc_mod(stat, avg=False):
+	m = stat - 10
+	if avg:
+		return m / 2
+	else:
+		return div_rand(m, 2)
+	
 def display_prob(perc):
 	if perc <= 0:
 		return "0%"
@@ -872,11 +879,7 @@ class Player(Entity):
 		self.did_attack = False
 		
 	def get_ac_bonus(self, avg=False):
-		s = self.DEX - 10
-		if avg:
-			s /= 2
-		else:
-			s = div_rand(s, 2)
+		s = calc_mod(self.DEX, avg)
 		if self.has_effect("Haste"):
 			s += 2
 		return s
@@ -1034,9 +1037,9 @@ class Player(Entity):
 			hits = False
 		elif roll == 20:
 			hits = True
-			crit = dice(1, 20) + div_rand(self.STR - 10, 2) >= mon.AC
+			crit = dice(1, 20) + calc_mod(self.STR) >= mon.AC
 		else:
-			hits = roll + div_rand(self.STR - 10, 2) >= mon.AC
+			hits = roll + calc_mod(self.STR) >= mon.AC
 		mon.on_player_attacked()
 		self.did_attack = True
 		self.adjust_duration("Invisible", -random.randint(0, 6))
@@ -1297,12 +1300,12 @@ class Monster(Entity):
 				if self.track_timer > 0:
 					self.track_timer -= 1
 					if player.has_effect("Invisible"):
-						check = dice(1, 20) + div_rand(player.DEX - 10, 2) < 10 + + div_rand(self.WIS - 10, 2)
+						check = dice(1, 20) + calc_mod(player.DEX) < 10 + calc_mod(self.WIS)
 					else:
 						check = True
 					self.path_towards(*self.last_seen)
 					if (self.x, self.y) == self.last_seen and check:
-						if dice(1, 20) + div_rand(player.DEX - 10, 2) < 10 + div_rand(self.WIS - 10, 2):
+						if dice(1, 20) + calc_mod(player.DEX) < 10 + calc_mod(self.WIS):
 							self.last_seen = (player.x, player.y)
 						else:
 							self.last_seen = None
