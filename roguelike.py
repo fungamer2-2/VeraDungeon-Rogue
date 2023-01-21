@@ -192,7 +192,7 @@ class Board:
 							x = pos1_x
 							while x != pos2_x:
 								self.carve_at(x, pos1_y)
-								x += dx
+								x += dx	
 							y = pos1_y
 							while y != pos2_y:
 								self.carve_at(pos2_x, y)
@@ -580,7 +580,7 @@ class Game:
 		
 	def do_turn(self):
 		while self.player.energy <= 0:
-			if random.randint(1, 6) == 1: #In case anything goes wrong, refresh the cache every so often
+			if random.randint(1, 6) == 1: #In case anything goes wrong, refresh the monster collision cache every so often
 				self.refresh_cache()
 			self.player.do_turn()
 			order = self.monsters[:]
