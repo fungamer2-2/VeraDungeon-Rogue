@@ -1253,13 +1253,13 @@ class Monster(Entity):
 		player = self.g.player
 		guessplayer = False
 		if self.is_aware and player.has_effect("Invisible"):
-			guessplayer = self.can_guess_invis()
+			guessplayer = self.can_guess_invis() #Even if the player is invisible, the monster may still be able to guess their position
 		if self.is_aware and (self.sees_player() or guessplayer):
 			xdist = player.x - self.x
 			ydist = player.y - self.y
 			dist = abs(xdist) + abs(ydist)
 			self.last_seen = (player.x, player.y)
-			self.track_timer = random.randint(25, 65)
+			self.track_timer = random.randint(25, 65) #How long we remember the player for when out of line of sight
 			if dist <= 1:
 				self.energy -= self.speed
 				self.do_melee_attack()
@@ -1314,7 +1314,7 @@ class Monster(Entity):
 						self.move(dx, 0)
 		else:
 			if player.has_effect("Invisible") and (self.x, self.y) == self.last_seen:
-				self.guess_rand_invis()
+				self.guess_rand_invis() #Guess a random position if the player is invisible
 			if self.last_seen:
 				if self.track_timer > 0:
 					self.track_timer -= 1
@@ -1324,6 +1324,7 @@ class Monster(Entity):
 						check = True
 					self.path_towards(*self.last_seen)
 					if (self.x, self.y) == self.last_seen and check:
+						#If we reach the target position and still don't see the player, roll a stealth check to continue tracking the player
 						if dice(1, 20) + calc_mod(player.DEX) < 10 + calc_mod(self.WIS):
 							self.last_seen = (player.x, player.y)
 						else:
