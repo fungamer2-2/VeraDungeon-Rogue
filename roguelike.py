@@ -11,9 +11,11 @@ from itertools import islice, chain
 from os import get_terminal_size
 
 def dice(num, sides):
+	"Rolls a given numver of dice with a given number of dice and takes the sum"
 	return sum(random.randint(1, sides) for _ in range(num))
 
 def div_rand(x, y):
+	"Computes x/y then randomly rounds the result up or down depending on the remainder"
 	sign = 1
 	if (x > 0) ^ (y > 0):
 		sign = -1
@@ -26,6 +28,11 @@ def mult_rand_frac(num, x, y):
 	return div_rand(num*x, y)
 
 def to_hit_prob(AC, hit_mod=0, adv=False, disadv=False):
+	"""
+	Calculates the percentage chance of successfully landing a hit
+	adv - If true, calculates the probability with advantage
+	disadv - If true, calculates the probability with disadvantage
+	"""
 	if adv and disadv:
 		adv = False
 		disadv = False
@@ -122,6 +129,9 @@ class Board:
 				return False
 		return True
 		
+	#A monster collision cache is used to improve the performance of detecting collisions with monsters
+	#This way, checking if there's a monster at a position can be O(1) instead of O(m)
+	
 	def set_cache(self, x, y):
 		self.collision_cache[y][x] = True
 		
@@ -295,7 +305,6 @@ def pathfind(board, start, end, rand=False):
 		return board.is_passable(x, y)
 	while open_set:
 		curr = open_set.pop()
-		#g.print_msg(len(open_set._data))
 		if curr == end:
 			path = [curr]
 			while curr in came_from:
@@ -572,6 +581,7 @@ class Game:
 		screen.refresh()
 		
 	def refresh_cache(self):
+		"Refreshes the monster collision cache"
 		board = self.board
 		board.clear_cache()
 		board.set_cache(self.player.x, self.player.y)
@@ -609,6 +619,7 @@ class Entity:
 		self.fov = set()
 		
 	def calc_fov(self):
+		"Calculates all tiles an entity can see from the current position"
 		board = self.g.board
 		fov = set()
 		fov.add((self.x, self.y))
