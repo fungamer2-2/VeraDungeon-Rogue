@@ -82,25 +82,6 @@ class Board:
 	def clear_cache(self):
 		self.collision_cache = [[False for x in range(self.cols)] for y in range(self.rows)]
 		
-	def raycast(self, pos1, pos2, skipfirst=True):
-		x1, y1 = pos1
-		x2, y2 = pos2
-		dx = x2 - x1
-		dy = y2 - y1
-		dist = abs(dx) + abs(dy)
-		last = None
-		for t in range(dist+1):
-			p = t/max(dist, 1)
-			doyield = True
-			mx = int(x1 + dx*p + 0.5)
-			my = int(y1 + dy*p + 0.5)
-			if last is not None and last == (mx, my):
-				continue
-			if skipfirst and (mx, my) == pos1:
-				continue
-			yield (mx, my)
-			last = (mx, my)
-	
 	def line_between(self, pos1, pos2, skipfirst=False, skiplast=False):
 		x1, y1 = pos1
 		x2, y2 = pos2
@@ -120,12 +101,12 @@ class Board:
 			e2 = 2 * error
 			if e2 >= dy:
 				if x1 == x2:
-					return True
+					return
 				error += dy
 				x1 += sx
 			if e2 <= dx:
 				if y1 == y2:
-					return True
+					return 
 				error += dx
 				y1 += sy
 				
@@ -460,15 +441,19 @@ class Game:
 						tile.items.append(typ())
 						break
 							
-		if random.randint(1, 4) < 4:
+		if random.randint(1, 5) < 5:
+			potential = []
 			if random.randint(1, 2) == 1:
-				place_potion(HealthPotion)
+				potential.append(HealthPotion)
 			if random.randint(1, 4) == 1:
-				place_potion(ResistPotion)
+				potential.append(ResistPotion)
 			if random.randint(1, 5) == 1:
-				place_potion(SpeedPotion)
+				potential.append(SpeedPotion)
 			if random.randint(1, 6) == 1:		
-				place_potion(InvisibilityPotion)
+				potential.append(InvisibilityPotion)
+			for p in potential:
+				if random.randint(1, 100) <= 70:
+					place_potion(p)
 		self.draw_board()
 		self.refresh_cache()
 	
@@ -490,7 +475,7 @@ class Game:
 		else:
 			del self.monsters[ind]
 			self.board.unset_cache(m.x, m.y)
-			
+	
 	def print_msg_if_sees(self, pos, msg, color=None):
 		assert len(pos) == 2 and type(pos) == tuple
 		if pos in self.player.fov:
@@ -1000,6 +985,11 @@ class Player(Entity):
 	def has_effect(self, name):
 		return name in self.effects
 		
+	def monsters_in_fov(self):
+		for m in self.g.monsters:
+			if (m.x, m.y) in self.fov:
+				yield m
+		
 	def adjust_duration(self, effect, amount):
 		if effect in self.effects:
 			eff = self.effects[effect]
@@ -1042,6 +1032,7 @@ class Player(Entity):
 		self.energy -= min(self.get_speed(), 45)
 		roll = dice(1, 20)
 		sneak_attack = not mon.is_aware
+		
 		if sneak_attack:
 			roll = max(roll, dice(1, 20))
 			self.g.print_msg(f"You catch the {mon.name} completely unaware!")
@@ -1287,7 +1278,6 @@ class Monster(Entity):
 					else:
 						self.g.print_msg("The projectile misses you.")
 				else:
-					self.g.print_msg("You are hit!", "red")
 					damage = dice(*self.ranged_dam)
 					if player.has_effect("Resistance"):
 						damage = div_rand(damage, 2)
@@ -1295,6 +1285,7 @@ class Monster(Entity):
 							self.g.print_msg("Your resistance blocks some of the damage.")
 					if damage < 1:
 						damage = 1
+					self.g.print_msg(f"You are hit for {damage} damage!", "red")
 					player.take_damage(damage)
 				self.energy -= self.speed
 			else:
@@ -1402,7 +1393,7 @@ class Kobold(Monster):
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "kobold", "K", 10, False, (2, 4))
+		super().__init__(g, "kobold", "K", 10, None, (2, 4))
 		
 class GiantRat(Monster):
 	diff = 2
@@ -1416,6 +1407,21 @@ class GiantRat(Monster):
 	
 	def __init__(self, g):
 		super().__init__(g, "giant rat", "R", 14, False)
+
+class Skeleton(Monster):
+	diff = 3
+	min_level = 7
+	AC = 12
+	WIS = 8
+	to_hit = 4
+	passive_perc = 9
+	attacks = [
+		Attack((2, 6), 4, "The {0} hits you with its shortsword")
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "skeleton", "F", 26, None, (2, 6))
+		
 
 class GiantBat(Monster):
 	diff = 3
@@ -1542,10 +1548,7 @@ try:
 					g.msg_cursor = limit
 				refresh = True
 			elif char == "f": #View info of monster types in view
-				fov_mons = []
-				for m in g.monsters:
-					if (m.x, m.y) in g.player.fov:
-						fov_mons.append(m)
+				fov_mons = list(g.player.monsters_in_fov())
 				refresh = True
 				if not fov_mons:
 					g.print_msg("You don't see any monsters right now")
@@ -1561,7 +1564,7 @@ try:
 					fov_mons = rem_dup[:]
 					del rem_dup
 					ac_bonus = g.player.get_ac_bonus(avg=True)
-					str_mod = (g.player.STR - 10)/2
+					str_mod = calc_mod(g.player.STR, avg=True)
 					for m in fov_mons:
 						hit_prob = to_hit_prob(m.AC, str_mod)
 						hit_adv = to_hit_prob(m.AC, str_mod, adv=True) #Probability with advantage
