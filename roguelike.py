@@ -1285,7 +1285,7 @@ class Monster(Entity):
 					hits = total >= AC
 				if not hits:
 					if roll > 1 and total >= AC - dodge_mod:
-						self.g.print_msg("You evade the projectile.")
+						self.g.print_msg("You dodge the projectile.")
 					else:
 						self.g.print_msg("The projectile misses you.")
 				else:
