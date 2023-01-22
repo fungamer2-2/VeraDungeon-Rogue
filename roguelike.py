@@ -440,7 +440,7 @@ class Game:
 						los_tries -= 1
 				self.monsters.append(m)
 		
-		def place_potion(typ):
+		def place_item(typ):
 			for j in range(200):
 				x = random.randint(1, self.board.cols - 2)
 				y = random.randint(1, self.board.rows - 2)
@@ -462,7 +462,12 @@ class Game:
 				potential.append(InvisibilityPotion)
 			for p in potential:
 				if random.randint(1, 100) <= 70:
-					place_potion(p)
+					place_item(p)
+		if random.randint(1, 3) == 1:
+			if random.randint(1, 3) == 1:
+				place_item(SleepScroll)
+			else:
+				place_item(ConfusionScroll)
 		self.draw_board()
 		self.refresh_cache()
 	
@@ -533,6 +538,8 @@ class Game:
 					item = tile.items[-1]
 					s = item.symbol
 					color = curses.color_pair(2)
+					if isinstance(item, Scroll):
+						color = curses.color_pair(4) | curses.A_BOLD
 				elif tile.symbol == " ":
 					if (col, row) in fov:
 						s = "."
@@ -548,7 +555,11 @@ class Game:
 			x, y = m.x, m.y
 			if (x, y) in fov:
 				color = curses.color_pair(3) if m.ranged else 0
-				if not m.is_aware:
+				if m.has_effect("Confused"):
+					color = curses.color_pair(4)
+				elif not m.is_aware:
+					if m.has_effect("Asleep"):
+						color = curses.color_pair(4)
 					color |= curses.A_REVERSE
 				try:
 					screen.addstr(y+offset, x, m.symbol, color)
@@ -795,6 +806,17 @@ class Item:
 		g = player.g
 		g.print_msg("You use an item. Nothing interesting seems to happen")
 		return True
+		
+class Scroll(Item):
+	description = "This is a regular scroll that does nothing. If you see this, it's a bug."
+	
+	def __init__(self, name):
+		super().__init__(name, "@")
+		
+	def use(self, player):
+		g = player.g
+		g.print_msg("You look at the blank scroll. It crumbles to dust immediately because it's so useless.")
+		return True
 
 class HealthPotion(Item):
 	description = "Consuming this potions increases the HP of the one who drinks it."
@@ -855,6 +877,52 @@ class InvisibilityPotion(Item):
 		player.gain_effect("Invisible", random.randint(45, 60))
 		return True
 		
+class ConfusionScroll(Scroll):
+	description = "Reading this scroll may cause nearby monsters to become confused."
+	
+	def __init__(self):
+		super().__init__("scroll of confusion")
+	
+	def use(self, player):
+		g = player.g
+		g.print_msg("You read a scroll of confusion. The scroll crumbles to dust.")
+		for m in player.monsters_in_fov():
+			if dice(1, 20) + calc_mod(m.WIS) >= 15:
+				g.print_msg(f"The {m.name} resists.")
+			else:
+				g.print_msg(f"The {m.name} is confused!")
+				m.gain_effect("Confused", random.randint(30, 45))
+		return True
+		
+class SleepScroll(Scroll):
+	description = "Reading this scroll may cause some of the nearby monsters to fall asleep."
+	
+	def __init__(self):
+		super().__init__("scroll of sleep")
+	
+	def use(self, player):
+		g = player.g
+		g.print_msg("You read a scroll of sleep. The scroll crumbles to dust.")
+		mons = list(player.monsters_in_fov())
+		random.shuffle(mons)
+		mons.sort(key=lambda m: m.HP)
+		power = dice(10, 8)
+		to_affect = []
+		for m in mons:
+			power -= m.HP
+			if power < 0:
+				break
+			to_affect.append(m)
+		if to_affect:
+			random.shuffle(to_affect)
+			for m in to_affect:
+				g.print_msg(f"The {m.name} falls asleep!")
+				m.gain_effect("Asleep", random.randint(30, 45))
+				m.is_aware = False
+		else:
+			g.print_msg("Nothing seems to happen.")
+		return True
+			
 class Player(Entity):
 	
 	def __init__(self, g):
@@ -972,6 +1040,8 @@ class Player(Entity):
 						self.g.print_msg(f"At this location you see the following items: {', '.join(strings)}")
 		for m in adj:
 			dist = abs(self.x - m.x) + abs(self.y - m.y)
+			if m.has_effect("Confused"): #Confused monsters can't make opportunity attacks
+				continue
 			if m.is_aware and m.sees_player() and dist == 2 and (m.speed > speed or (m.speed == speed and random.randint(1, 2) == 1)) and random.randint(1, 3) == 1:
 				self.g.print_msg(f"As you move away from {m.name}, it makes an opportunity attack!", "yellow")
 				m.melee_attack_player(force=True)
@@ -1023,9 +1093,13 @@ class Player(Entity):
 				m.reset_check_timer()
 				if not m.is_aware:
 					roll = dice(1, 20)
-					if (m.x, m.y) in self.fov and (roll == 1 or roll + div_rand(self.DEX - 10, 2) + mod < m.passive_perc):
+					perc = m.passive_perc
+					if m.has_effect("Asleep"):
+						perc -= 5
+					if (m.x, m.y) in self.fov and (roll == 1 or roll + div_rand(self.DEX - 10, 2) + mod < perc):
 						m.is_aware = True
 						m.last_seen = (self.x, self.y)
+						m.remove_effect("Asleep")
 		self.did_attack = False
 				
 	def attack(self, dx, dy):
@@ -1038,7 +1112,6 @@ class Player(Entity):
 		self.energy -= min(self.get_speed(), 45)
 		roll = dice(1, 20)
 		sneak_attack = not mon.is_aware
-		
 		if sneak_attack:
 			roll = max(roll, dice(1, 20))
 			self.g.print_msg(f"You catch the {mon.name} completely unaware!")
@@ -1052,6 +1125,10 @@ class Player(Entity):
 			crit = dice(1, 20) + calc_mod(self.STR) >= mon.AC
 		else:
 			hits = roll + calc_mod(self.STR) >= mon.AC
+		if mon.has_effect("Asleep"):
+			hits = True
+			mon.is_aware = True
+			mon.remove_effect("Asleep")
 		mon.on_player_attacked()
 		self.did_attack = True
 		self.adjust_duration("Invisible", -random.randint(0, 6))
@@ -1135,6 +1212,7 @@ class Monster(Entity):
 		self.track_timer = 0
 		self.is_aware = False
 		self.check_timer = 1
+		self.effects = {}
 		
 	def reset_check_timer(self):
 		self.check_timer = random.randint(1, 3)
@@ -1150,15 +1228,31 @@ class Monster(Entity):
 			self.energy -= 30
 			return True
 		return False
+		
+	def has_effect(self, name):
+		return name in self.effects
+		
+	def remove_effect(self, name):
+		if name in self.effects:
+			del self.effects[name]
+		
+	def gain_effect(self, name, duration):
+		if name not in self.effects:
+			self.effects[name] = 0
+		self.effects[name] += duration
 	
 	def do_turn(self):
-		self.energy += self.speed	
+		self.energy += self.speed
 		while self.energy > 0:
 			old = self.energy
 			self.actions()
 			if self.energy == old:
-				self.energy = min(self.energy, 0)
-				
+				self.energy = min(self.energy, 0) 
+		for e in list(self.effects.keys()):
+			self.effects[e] -= 1
+			if self.effects[e] <= 0:
+				del self.effects[e]
+			
 	def should_use_ranged(self):
 		board = self.g.board
 		player = self.g.player
@@ -1244,12 +1338,22 @@ class Monster(Entity):
 				break	
 		
 	def actions(self):
+		if self.has_effect("Asleep"): #If we're asleep, return early
+			self.energy = 0
+			return
 		board = self.g.board
 		player = self.g.player
+		confused = self.has_effect("Confused") and random.randint(1, 4) < 4
 		guessplayer = False
 		if self.is_aware and player.has_effect("Invisible"):
 			guessplayer = self.can_guess_invis() #Even if the player is invisible, the monster may still be able to guess their position
-		if self.is_aware and (self.sees_player() or guessplayer):
+		if confused:
+			dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
+			if not self.move(*random.choice(dirs)): #Only try twice
+				if not self.move(*random.choice(dirs)):
+					self.energy -= div_rand(self.speed, 2) #We bumped into something while confused
+			self.energy = min(self.energy, 0)
+		elif self.is_aware and (self.sees_player() or guessplayer):
 			xdist = player.x - self.x
 			ydist = player.y - self.y
 			dist = abs(xdist) + abs(ydist)
