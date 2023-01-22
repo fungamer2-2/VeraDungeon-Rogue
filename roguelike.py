@@ -895,13 +895,8 @@ class Player(Entity):
 		while self.exp >= self.max_exp():
 			self.exp -= self.max_exp()
 			self.level += 1
-			if self.level % 2 == 0:
-				diff = self.STR - self.DEX
-				absdiff = abs(diff)
-				changestr = random.randint(1, absdiff+2) == 1
-				if diff < 0:
-					changestr = not changestr		
-				if changestr:	
+			if self.level % 2 == 0:		
+				if random.randint(1, 2) == 1:	
 					self.STR += 1
 				else:
 					self.DEX += 1
@@ -1271,7 +1266,7 @@ class Monster(Entity):
 					time.sleep(0.08)
 				self.g.clear_projectile()
 				roll = dice(1, 20)
-				if player.has_effect("Invisible"):
+				if player.has_effect("Invisible"): #The player is harder to hit when invisible
 					roll = min(roll, dice(1, 20))
 				bonus = self.to_hit
 				dodge_mod = player.get_ac_bonus()
