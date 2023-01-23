@@ -413,7 +413,7 @@ class Game:
 		add_text(f"You reached Dungeon Level {self.level}")
 		add_text(f"You attained XP level {p.level}")
 		add_line()
-		add_line(f"Your final stats were:")
+		add_text(f"Your final stats were:")
 		add_text(f"STR {p.STR}, DEX {p.DEX}")
 		add_line()
 		add_text("Press enter to quit")
