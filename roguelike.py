@@ -395,6 +395,33 @@ class Game:
 		screen.refresh()
 		while screen.getch() != 10: pass
 		self.draw_board()
+		
+	def game_over(self):
+		size = get_terminal_size()
+		termwidth = size.columns
+		msg = []
+		def add_text(txt=""):
+			nonlocal msg
+			txt = str(txt)
+			msg += textwrap.wrap(txt, termwidth)
+		def add_line():
+			msg.append("")
+			
+		p = self.player
+		add_text("GAME OVER")
+		add_line()
+		add_text(f"You reached Dungeon Level {self.level}")
+		add_text(f"You attained XP level {p.level}")
+		add_line()
+		add_line(f"Your final stats were:")
+		add_text(f"STR {p.STR}, DEX {p.DEX}")
+		add_line()
+		add_text("Press enter to quit")
+		screen = self.screen
+		screen.clear()
+		screen.addstr(0, 0, "\n".join(msg))
+		screen.refresh()
+		while screen.getch() != 10: pass
 			
 	def set_projectile_pos(self, x, y):
 		self.projectile = (x, y)
@@ -693,7 +720,7 @@ class Entity:
 						fov.add((xp, yp))
 						
 		return fov
-				
+		
 	def can_see(self, x, y):
 		return (x, y) in self.fov
 		
@@ -1800,6 +1827,8 @@ try:
 				g.draw_board()
 		elif refresh:
 			g.draw_board()
+	g.input("Press enter to continue...")
+	g.game_over()
 except Exception as e:
 	curses.nocbreak()
 	curses.echo()
