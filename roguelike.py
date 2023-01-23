@@ -1739,7 +1739,19 @@ try:
 			elif char == "u": #Use an item
 				if g.player.inventory:
 					g.print_msg("Which item would you like to use?")
-					strings = list(map(lambda item: item.name, g.player.inventory))
+					inv = g.player.inventory[:]
+					d = {}
+					for item in inv:
+						name = item.name
+						if name not in d:
+							d[name] = 0
+						d[name] += 1
+					strings = []
+					for name in sorted(d.keys()):
+						if d[name] == 1:
+							strings.append(name)
+						else:
+							strings.append(name + f" ({d[name]})")
 					g.print_msg("You have: " + ", ".join(strings))
 					name = g.input()
 					item = next((it for it in g.player.inventory if it.name == name), None)
