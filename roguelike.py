@@ -26,6 +26,10 @@ def div_rand(x, y):
 
 def mult_rand_frac(num, x, y):
 	return div_rand(num*x, y)
+	
+def rand_weighted(*pairs):
+	names, weights = list(zip(*pairs))
+	return random.choices(names, weights=weights)[0]
 
 def to_hit_prob(AC, hit_mod=0, adv=False, disadv=False):
 	"""
@@ -463,11 +467,13 @@ class Game:
 			for p in potential:
 				if random.randint(1, 100) <= 70:
 					place_item(p)
-		if random.randint(1, 3) == 1:
-			if random.randint(1, 3) == 1:
-				place_item(SleepScroll)
-			else:
-				place_item(ConfusionScroll)
+		if random.randint(1, 100) <= 35:
+			typ = rand_weighted(
+				(TeleportScroll, 1),
+				(SleepScroll, 1),
+				(ConfusionScroll, 2)
+			)
+			place_item(typ)
 		self.draw_board()
 		self.refresh_cache()
 	
@@ -909,6 +915,8 @@ class SleepScroll(Scroll):
 		power = dice(10, 8)
 		to_affect = []
 		for m in mons:
+			if m.has_effect("Asleep"):
+				continue
 			power -= m.HP
 			if power < 0:
 				break
@@ -921,6 +929,19 @@ class SleepScroll(Scroll):
 				m.is_aware = False
 		else:
 			g.print_msg("Nothing seems to happen.")
+		return True
+		
+class TeleportScroll(Scroll):
+	description = "Reading this scroll will randomly teleport the one who reads it."
+	
+	def __init__(self):
+		super().__init__("scroll of teleportation")
+	
+	def use(self, player):
+		g = player.g
+		g.print_msg("You read a scroll of teleportation. The scroll crumbles to dust.")
+		player.teleport()
+		player.energy -= player.get_speed()
 		return True
 			
 class Player(Entity):
@@ -1006,7 +1027,28 @@ class Player(Entity):
 		self.y = 0
 		if not super().place_randomly():
 			raise RuntimeError("Could not generate a valid starting position for player")
-			
+	
+	def teleport(self):
+		board = self.g.board
+		oldloc = (self.x, self.y)
+		for _ in range(500):
+			x = random.randint(1, board.cols - 2)
+			y = random.randint(1, board.rows - 2)
+			if board.is_passable(x, y) and (x, y) != oldloc:
+				seeslastpos = board.line_of_sight((x, y), oldloc)
+				if seeslastpos and random.randint(1, 2) == 1:
+					continue
+				if not seeslastpos: #We teleported out of sight
+					for m in self.monsters_in_fov():
+						m.stop_tracking()
+				self.g.print_msg("You teleport!")
+				self.x = x
+				self.y = y
+				self.fov = self.calc_fov()
+				break
+		else:
+			self.g.print_msg("You feel yourself begin to teleport, but nothing happens.")
+	
 	def move(self, dx, dy):
 		if self.dead:
 			self.energy = 0
@@ -1335,7 +1377,13 @@ class Monster(Entity):
 				tries -= 1
 			else:
 				self.last_seen = (xp, yp)
-				break	
+				break
+				
+	def stop_tracking(self):
+		self.last_seen = None
+		self.track_timer = 0
+		self.is_aware = False
+		self.dir = None
 		
 	def actions(self):
 		if self.has_effect("Asleep"): #If we're asleep, return early
@@ -1427,15 +1475,9 @@ class Monster(Entity):
 						if dice(1, 20) + calc_mod(player.DEX) < 10 + calc_mod(self.WIS):
 							self.last_seen = (player.x, player.y)
 						else:
-							self.last_seen = None
-							self.track_timer = 0
-							self.is_aware = False
-							self.dir = None
+							self.stop_tracking()
 				else:
-					self.last_seen = None
-					self.track_timer = 0
-					self.is_aware = False
-					self.dir = None	
+					self.stop_tracking()
 			elif random.randint(1, 6) < 6:
 				choose_new = self.dir is None or (random.randint(1, 3) == 1 or not self.move(*self.dir))
 				if choose_new:
