@@ -14,6 +14,9 @@ Also, note that the `curses` module doesn't work on Windows)
 `u` - use an item from inventory (just type in the name of the item)<br />
 `r` - rest until HP full<br />
 `p` - pick up an item
+`j` - view description of items at this location
+`.` - wait a turn
+`?` - brings up the help menu for the controls
 
 ### Gameplay
 Your goal is to fight the monsters in a randomly generated dungeon. Move into a monster to attack. <br />
