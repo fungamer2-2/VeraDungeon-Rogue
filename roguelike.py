@@ -353,6 +353,7 @@ class Game:
 		curses.init_pair(2, curses.COLOR_GREEN, 0)
 		curses.init_pair(3, curses.COLOR_YELLOW, 0)
 		curses.init_pair(4, curses.COLOR_BLUE, 0)
+		curses.init_pair(5, curses.COLOR_MAGENTA, 0)
 		
 		self.screen.clear()
 		curses.noecho()
@@ -494,9 +495,10 @@ class Game:
 			for p in potential:
 				if random.randint(1, 100) <= 70:
 					place_item(p)
-		if random.randint(1, 100) <= 35:
+		if random.randint(1, 100) <= 38:
 			typ = rand_weighted(
-				(TeleportScroll, 1),
+				(StunScroll, 1),
+				(TeleportScroll, 2),
 				(SleepScroll, 1),
 				(ConfusionScroll, 2)
 			)
@@ -590,6 +592,8 @@ class Game:
 				color = curses.color_pair(3) if m.ranged else 0
 				if m.has_effect("Confused"):
 					color = curses.color_pair(4)
+				elif m.has_effect("Stunned"):
+					color = curses.color_pair(5)
 				elif not m.is_aware:
 					if m.has_effect("Asleep"):
 						color = curses.color_pair(4)
@@ -958,6 +962,26 @@ class SleepScroll(Scroll):
 			g.print_msg("Nothing seems to happen.")
 		return True
 		
+class StunScroll(Scroll):
+	description = "Reading this scroll stuns a random amount of nearby monsters."
+	
+	def __init__(self):
+		super().__init__("scroll of stun")
+	
+	def use(self, player):
+		g = player.g
+		g.print_msg("You read a scroll of stun. The scroll crumbles to dust.")
+		seen = list(player.monsters_in_fov())
+		affects = seen[:random.randint(1, len(seen))]
+		random.shuffle(affects)
+		for m in affects:
+			if m.HP <= random.randint(125, 175):
+				g.print_msg(f"The {m.name} is stunned!")
+				m.gain_effect("Stunned", random.randint(6, 22))
+			else:
+				g.print_msg(f"The {m.name} is unaffected.")
+		return True
+		
 class TeleportScroll(Scroll):
 	description = "Reading this scroll will randomly teleport the one who reads it."
 	
@@ -1109,7 +1133,7 @@ class Player(Entity):
 						self.g.print_msg(f"At this location you see the following items: {', '.join(strings)}")
 		for m in adj:
 			dist = abs(self.x - m.x) + abs(self.y - m.y)
-			if m.has_effect("Confused"): #Confused monsters can't make opportunity attacks
+			if m.has_effect("Confused") or m.has_effect("Stunned"): #Confused monsters can't make opportunity attacks
 				continue
 			mon_speed = m.get_speed()
 			if m.is_aware and m.sees_player() and dist == 2 and (mon_speed > speed or (mon_speed == speed and random.randint(1, 2) == 1)) and random.randint(1, 3) == 1:
@@ -1335,7 +1359,10 @@ class Monster(Entity):
 			self.effects[e] -= 1
 			if self.effects[e] <= 0:
 				del self.effects[e]
-			
+				if e == "Confused":
+					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} is no longer confused.")
+				elif e == "Stunned":
+					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} is no longer stunned.")
 	def should_use_ranged(self):
 		board = self.g.board
 		player = self.g.player
@@ -1430,7 +1457,7 @@ class Monster(Entity):
 		self.dir = None
 		
 	def actions(self):
-		if self.has_effect("Asleep"): #If we're asleep, return early
+		if self.has_effect("Asleep") or self.has_effect("Stunned"): #If we're asleep or stunned, return early
 			self.energy = 0
 			return
 		board = self.g.board
@@ -1618,7 +1645,6 @@ class Skeleton(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "skeleton", "F", 26, None, (2, 6))
-		
 
 class GiantBat(Monster):
 	diff = 3
