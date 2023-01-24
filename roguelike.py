@@ -639,7 +639,7 @@ class Game:
 			self.player.do_turn()
 			order = self.monsters[:]
 			random.shuffle(order)
-			order.sort(key=lambda m: m.speed, reverse=True)
+			order.sort(key=lambda m: m.get_speed(), reverse=True)
 			for m in order:
 				if m.HP > 0:
 					m.do_turn()
@@ -1111,7 +1111,8 @@ class Player(Entity):
 			dist = abs(self.x - m.x) + abs(self.y - m.y)
 			if m.has_effect("Confused"): #Confused monsters can't make opportunity attacks
 				continue
-			if m.is_aware and m.sees_player() and dist == 2 and (m.speed > speed or (m.speed == speed and random.randint(1, 2) == 1)) and random.randint(1, 3) == 1:
+			mon_speed = m.get_speed()
+			if m.is_aware and m.sees_player() and dist == 2 and (mon_speed > speed or (mon_speed == speed and random.randint(1, 2) == 1)) and random.randint(1, 3) == 1:
 				self.g.print_msg(f"As you move away from {m.name}, it makes an opportunity attack!", "yellow")
 				m.melee_attack_player(force=True)
 		self.energy -= 30
@@ -1180,11 +1181,13 @@ class Player(Entity):
 		mon = self.g.get_monster(x, y)
 		self.energy -= min(self.get_speed(), 45)
 		roll = dice(1, 20)
-		sneak_attack = not mon.is_aware
-		if sneak_attack:
-			roll = max(roll, dice(1, 20))
-			self.g.print_msg(f"You catch the {mon.name} completely unaware!")
-		elif self.has_effect("Invisible"):
+		adv = False
+		if not mon.is_aware or self.has_effect("Invisible"):
+			adv = True
+		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) - 5 >= mon.passive_perc
+		if mon.has_effect("Asleep"):
+			sneak_attack = True
+		if adv:
 			roll = max(roll, dice(1, 20))
 		crit = False
 		if roll == 1:
@@ -1194,6 +1197,12 @@ class Player(Entity):
 			crit = dice(1, 20) + calc_mod(self.STR) >= mon.AC
 		else:
 			hits = roll + calc_mod(self.STR) >= mon.AC
+		if sneak_attack:
+			if random.randint(1, 3) == 1:
+				self.g.print_msg(f"The {mon.name} is caught off-guard by your sneak attack!")
+			else:
+				self.g.print_msg(f"You catch the {mon.name} completely unaware!")
+			hits = True
 		if mon.has_effect("Asleep"):
 			hits = True
 			mon.is_aware = True
@@ -1283,6 +1292,11 @@ class Monster(Entity):
 		self.check_timer = 1
 		self.effects = {}
 		
+	def get_speed(self):
+		speed = self.speed
+		#When effects modify speed, the effects will go here
+		return speed
+		
 	def reset_check_timer(self):
 		self.check_timer = random.randint(1, 3)
 	
@@ -1311,7 +1325,7 @@ class Monster(Entity):
 		self.effects[name] += duration
 	
 	def do_turn(self):
-		self.energy += self.speed
+		self.energy += self.get_speed()
 		while self.energy > 0:
 			old = self.energy
 			self.actions()
@@ -1334,7 +1348,10 @@ class Monster(Entity):
 			attack = random.choice(self.attacks)
 		player = self.g.player
 		roll = dice(1, 20)
+		disadv = False
 		if player.has_effect("Invisible"):
+			disadv = True
+		if disadv:
 			roll = min(roll, dice(1, 20))
 		ac_mod = player.get_ac_bonus()
 		AC = 10 + ac_mod
@@ -1426,7 +1443,7 @@ class Monster(Entity):
 			dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
 			if not self.move(*random.choice(dirs)): #Only try twice
 				if not self.move(*random.choice(dirs)):
-					self.energy -= div_rand(self.speed, 2) #We bumped into something while confused
+					self.energy -= div_rand(self.get_speed(), 2) #We bumped into something while confused
 			self.energy = min(self.energy, 0)
 		elif self.is_aware and (self.sees_player() or guessplayer):
 			xdist = player.x - self.x
@@ -1435,7 +1452,7 @@ class Monster(Entity):
 			self.last_seen = (player.x, player.y)
 			self.track_timer = random.randint(25, 65) #How long we remember the player for when out of line of sight
 			if dist <= 1:
-				self.energy -= self.speed
+				self.energy -= self.get_speed()
 				self.do_melee_attack()
 			elif self.ranged and self.should_use_ranged():
 				self.g.print_msg(f"The {self.name} makes a ranged attack at you.")
@@ -1472,7 +1489,7 @@ class Monster(Entity):
 						damage = 1
 					self.g.print_msg(f"You are hit for {damage} damage!", "red")
 					player.take_damage(damage)
-				self.energy -= self.speed
+				self.energy -= self.get_speed()
 			else:
 				dx = 1 if xdist > 0 else (-1 if xdist < 0 else 0)
 				dy = 1 if ydist > 0 else (-1 if ydist < 0 else 0)
@@ -1505,7 +1522,7 @@ class Monster(Entity):
 							self.stop_tracking()
 				else:
 					self.stop_tracking()
-			elif random.randint(1, 6) < 6:
+			elif random.randint(1, 5) < 5:
 				choose_new = self.dir is None or (random.randint(1, 3) == 1 or not self.move(*self.dir))
 				if choose_new:
 					if self.dir is None:
