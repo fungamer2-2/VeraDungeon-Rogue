@@ -440,6 +440,11 @@ class Game:
 		self.draw_board()
 		return string.decode()
 		
+	def yes_no(self, message):
+		while (choice := self.input(message).lower()) not in ["y", "n"]:
+			self.print_msg("Please enter \"Y\" or \"N\"")
+		return choice == "y"
+		
 	def add_monster(self, m):
 		if m.place_randomly():
 			self.monsters.append(m)
@@ -503,6 +508,19 @@ class Game:
 				(ConfusionScroll, 2)
 			)
 			place_item(typ)
+		if self.level > 1 and random.randint(1, 100) <= 60:
+			types = [LeatherArmor]
+			if self.level > 3:
+				types.append(HideArmor)
+			if self.level > 6:
+				types.append(ChainShirt)
+			num = 1
+			if self.level > random.randint(1, 3) and random.randint(1, 3) == 1:
+				num += 1
+				if self.level > random.randint(1, 6) and random.randint(1, 3) == 1:
+					num += 1
+			for _ in range(num):
+				place_item(random.choice(types))
 		self.draw_board()
 		self.refresh_cache()
 	
@@ -573,7 +591,7 @@ class Game:
 					item = tile.items[-1]
 					s = item.symbol
 					color = curses.color_pair(2)
-					if isinstance(item, Scroll):
+					if isinstance(item, (Scroll, Armor)):
 						color = curses.color_pair(4) | curses.A_BOLD
 				elif tile.symbol == " ":
 					if (col, row) in fov:
@@ -621,6 +639,11 @@ class Game:
 		screen.addstr(0, wd - len(str_string), str_string)
 		dex_string = f"DEX {self.player.DEX}"
 		screen.addstr(1, wd - len(dex_string), dex_string)
+		armor = self.player.armor
+		if armor:
+			ar_str = f"{armor.name} ({armor.protect})"
+			screen.addstr(3, wd - len(ar_str), ar_str)
+		
 		
 		try:
 			screen.move(board.rows + offset, 0)
@@ -867,7 +890,7 @@ class HealthPotion(Item):
 			g.print_msg("Your HP is already full!")
 			return False
 		else:
-			recover = 10 + random.randint(0, player.MAX_HP//4) + random.randint(0, player.MAX_HP//4)
+			recover = 10 + random.randint(0, div_rand(player.MAX_HP, 4)) + random.randint(0, div_rand(player.MAX_HP, 4))
 			g.print_msg("You recover some HP.")
 			player.HP = min(player.MAX_HP, player.HP + recover)
 			return True
@@ -994,7 +1017,59 @@ class TeleportScroll(Scroll):
 		player.teleport()
 		player.energy -= player.get_speed()
 		return True
+		
+class Activity:
+	
+	def __init__(self, name, time):
+		self.name = name
+		self.time = time
+		
+	def on_finished(self, player):
+		pass
+		
+class WearArmor(Activity):
+	
+	def __init__(self, armor):
+		super().__init__(f"putting on your {armor.name}", 30)
+		self.armor = armor
+		
+	def on_finished(self, player):
+		player.armor = self.armor
+		g = player.g
+		g.print_msg(f"You finish putting on your {self.armor.name}.")
+		
+class Armor(Item):
+	description = "This is just a standard armor. It may protect you from attacks. (This is just the generic factory; you shouldn't see this in-game, and if you do, it's a bug.)"
 			
+	def __init__(self, name, symbol, protect):
+		super().__init__(name, symbol)
+		self.protect = protect
+		
+	def use(self, player):
+		g = player.g
+		if player.armor and player.armor.name == self.name:
+			g.print_msg(f"You are already wearing {self.name}!")
+			return False
+		g.print_msg(f"You begin putting on your {self.name}.")
+		player.activity = WearArmor(self)
+		return False #Do not remove armor from inventory
+
+class LeatherArmor(Armor):
+				
+	def __init__(self):
+		super().__init__("leather armor", "L", 1)
+
+class HideArmor(Armor):
+				
+	def __init__(self):
+		super().__init__("hide armor", "H", 2)
+		
+class ChainShirt(Armor):
+				
+	def __init__(self):
+		super().__init__("chain shirt", "C", 3)
+
+
 class Player(Entity):
 	
 	def __init__(self, g):
@@ -1012,6 +1087,8 @@ class Player(Entity):
 		self.STR = 10
 		self.DEX = 10
 		self.effects = {}
+		self.armor = None
+		self.activity = None
 		self.did_attack = False
 		
 	def get_ac_bonus(self, avg=False):
@@ -1066,6 +1143,10 @@ class Player(Entity):
 		if self.resting:
 			self.g.print_msg("Your rest was interrupted.", "yellow")
 			self.resting = False
+		elif self.activity:
+			if not self.g.yes_no(f"Continue {self.activity.name}?"):
+				self.activity = None
+			
 		if self.HP <= 0:
 			self.HP = 0
 			self.g.print_msg("You have died!", "red")
@@ -1247,12 +1328,16 @@ class Player(Entity):
 				scale_mod = (self.level - 1) % 4
 				dam += dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, 4)
 			dam += div_rand(self.STR - 10, 2)
-			if dam < 1:
-				dam = 1
+			dam -= random.randint(0, 4*mon.armor)
+			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
+			dam = max(dam, min_dam)
 			mon.HP -= dam
-			self.g.print_msg(f"You hit the {mon.name} for {dam} damage.")
-			if crit:
-				self.g.print_msg("Critical!", "green")
+			if dam > 0:
+				self.g.print_msg(f"You hit the {mon.name} for {dam} damage.")
+				if crit:
+					self.g.print_msg("Critical!", "green")
+			else:
+				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
 			if mon.HP <= 0:
 				self.g.print_msg(f"The {mon.name} dies!", "green")
 				self.g.remove_monster(mon)
@@ -1297,6 +1382,7 @@ class Monster(Entity):
 	to_hit = 0
 	passive_perc = 11
 	WIS = 10
+	armor = 0
 	attacks = [Attack((1, 3), 0)]
 	
 	def __init__(self, g, name="monster", symbol=None, HP=10, ranged=None, ranged_dam=(2, 3)):
@@ -1355,6 +1441,7 @@ class Monster(Entity):
 			self.actions()
 			if self.energy == old:
 				self.energy = min(self.energy, 0) 
+		self.track_timer -= 1
 		for e in list(self.effects.keys()):
 			self.effects[e] -= 1
 			if self.effects[e] <= 0:
@@ -1363,12 +1450,24 @@ class Monster(Entity):
 					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} is no longer confused.")
 				elif e == "Stunned":
 					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} is no longer stunned.")
+
 	def should_use_ranged(self):
 		board = self.g.board
 		player = self.g.player
 		if not board.is_clear_path((self.x, self.y), (player.x, player.y)):
 			return False
 		return random.randint(1, 100) <= 40
+		
+	def modify_damage(self, damage):
+		player = self.g.player
+		armor = player.armor
+		if armor:
+			damage -= random.randint(1, armor.protect*4) #Armor can reduce damage
+		if player.has_effect("Resistance"):
+			damage = div_rand(damage, 2)
+			if random.randint(1, 2) == 1: #Don't tell them every time
+				self.g.print_msg("Your resistance blocks some of the damage.")
+		return max(damage, 0)
 		
 	def melee_attack_player(self, attack=None, force=False):
 		if attack is None:
@@ -1396,15 +1495,12 @@ class Monster(Entity):
 			else:
 				self.g.print_msg(f"You evade the {self.name}'s attack.")
 		else:
-			damage = dice(*attack.dmg)
-			if player.has_effect("Resistance"):
-				damage = div_rand(damage, 2)
-				if random.randint(1, 2) == 1: #Don't tell them every time
-					self.g.print_msg("Your resistance blocks some of the damage.")
-			if damage < 1:
-				damage = 1
-			self.g.print_msg(attack.msg.format(self.name) + f" for {damage} damage!", "red")
-			player.take_damage(damage)
+			damage = self.modify_damage(dice(*attack.dmg))
+			if damage:
+				self.g.print_msg(attack.msg.format(self.name) + f" for {damage} damage!", "red")
+				player.take_damage(damage)
+			else:
+				self.g.print_msg(attack.msg.format(self.name) + " but does no damage.")
 			
 	def do_melee_attack(self):
 		for att in self.attacks:
@@ -1507,15 +1603,12 @@ class Monster(Entity):
 					else:
 						self.g.print_msg("The projectile misses you.")
 				else:
-					damage = dice(*self.ranged_dam)
-					if player.has_effect("Resistance"):
-						damage = div_rand(damage, 2)
-						if random.randint(1, 2) == 1: #Don't tell them every time
-							self.g.print_msg("Your resistance blocks some of the damage.")
-					if damage < 1:
-						damage = 1
-					self.g.print_msg(f"You are hit for {damage} damage!", "red")
-					player.take_damage(damage)
+					damage = self.modify_damage(dice(*self.ranged_dam))
+					if damage:
+						self.g.print_msg(f"You are hit for {damage} damage!", "red")
+						player.take_damage(damage)
+					else:
+						self.g.print_msg("The projectile hits you but does no damage.")
 				self.energy -= self.get_speed()
 			else:
 				dx = 1 if xdist > 0 else (-1 if xdist < 0 else 0)
@@ -1535,7 +1628,6 @@ class Monster(Entity):
 				self.guess_rand_invis() #Guess a random position if the player is invisible
 			if self.last_seen:
 				if self.track_timer > 0:
-					self.track_timer -= 1
 					if player.has_effect("Invisible"):
 						check = dice(1, 20) + calc_mod(player.DEX) < 10 + calc_mod(self.WIS)
 					else:
@@ -1638,6 +1730,7 @@ class Skeleton(Monster):
 	AC = 12
 	WIS = 8
 	to_hit = 4
+	arnor = 1
 	passive_perc = 9
 	attacks = [
 		Attack((2, 6), 4, "The {0} hits you with its shortsword")
@@ -1687,12 +1780,28 @@ class GiantGoat(Monster):
 	def __init__(self, g):
 		super().__init__(g, "giant goat", "G", 38, False)
 
+class Orc(Monster):
+	diff = 4
+	speed = 30
+	min_level = 12
+	AC = 11
+	WIS = 11
+	to_hit = 5
+	armor = 2
+	passive_perc = 10
+	attacks = [
+		Attack((2, 12), 3, "The {0} hits you with its greataxe")
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "orc", "O", 30, None, (2, 6))
+
 class BlackBear(Monster):
 	diff = 4
 	speed = 40
-	min_level = 12
+	min_level = 13
 	AC = 11
-	WIS = 2
+	WIS = 12
 	to_hit = 3
 	passive_perc = 13
 	attacks = [
@@ -1747,8 +1856,17 @@ try:
 			if g.player.HP >= g.player.MAX_HP:
 				g.print_msg("HP restored.", "green")
 				g.player.resting = False
-				g.player.energy = g.player.get_speed()
+				g.player.energy = random.randint(1, g.player.get_speed())
 				refresh = True
+		elif g.player.activity:
+			time.sleep(0.01)
+			g.player.energy = 0
+			g.player.activity.time -= 1
+			if g.player.activity.time <= 0:
+				g.player.activity.on_finished(g.player)
+				g.player.activity = None
+				refresh = True
+				g.player.energy = random.randint(1, g.player.get_speed())
 		else:
 			curses.flushinp()
 			char = chr(g.screen.getch())
@@ -1805,6 +1923,8 @@ try:
 							string += f"{x}d{y}"
 							if i < len(m.attacks) - 1:
 								string += ", "
+						if m.armor > 0:
+							string += f" | Armor: {m.armor}"
 						g.print_msg(string)
 			elif char == "u": #Use an item
 				if g.player.inventory:
