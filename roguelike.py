@@ -441,7 +441,7 @@ class Game:
 		return string.decode()
 		
 	def yes_no(self, message):
-		while (choice := self.input(message).lower()) not in ["y", "n"]:
+		while (choice := self.input(message + " (Y/N)").lower()) not in ["y", "n"]:
 			self.print_msg("Please enter \"Y\" or \"N\"")
 		return choice == "y"
 		
@@ -1039,8 +1039,8 @@ class WearArmor(Activity):
 		g.print_msg(f"You finish putting on your {self.armor.name}.")
 		
 class Armor(Item):
-	description = "This is just a standard armor. It may protect you from attacks. (This is just the generic factory; you shouldn't see this in-game, and if you do, it's a bug.)"
-			
+	description = "This is armor. It may protect you from attacks."
+	
 	def __init__(self, name, symbol, protect):
 		super().__init__(name, symbol)
 		self.protect = protect
@@ -1145,6 +1145,7 @@ class Player(Entity):
 			self.resting = False
 		elif self.activity:
 			if not self.g.yes_no(f"Continue {self.activity.name}?"):
+				self.g.print_msg(f"You stop {self.activity.name}.")
 				self.activity = None
 			
 		if self.HP <= 0:
@@ -1328,7 +1329,7 @@ class Player(Entity):
 				scale_mod = (self.level - 1) % 4
 				dam += dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, 4)
 			dam += div_rand(self.STR - 10, 2)
-			dam -= random.randint(0, 4*mon.armor)
+			dam -= random.randint(0, 2*mon.armor)
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
 			dam = max(dam, min_dam)
 			mon.HP -= dam
@@ -1373,6 +1374,9 @@ class Attack:
 		self.dmg = dmg
 		self.to_hit = to_hit
 		self.msg = msg
+		
+	def on_hit(self, player):
+		pass
 								
 class Monster(Entity):
 	min_level = 1
@@ -1730,7 +1734,7 @@ class Skeleton(Monster):
 	AC = 12
 	WIS = 8
 	to_hit = 4
-	arnor = 1
+	armor = 1
 	passive_perc = 9
 	attacks = [
 		Attack((2, 6), 4, "The {0} hits you with its shortsword")
