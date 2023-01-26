@@ -1,8 +1,27 @@
 try:
 	import curses
-except:
-	print("Sorry, Windows doesn't support the curses module.")
-	exit()
+except:	
+	print("The builtin curses module is not supported on Windows.")
+	print("However, you can install the windows-curses module in order to play on Windows.")
+	while True:
+		print("Would you like to install windows-curses? (Y/N)")
+		choice = input(">> ")
+		if choice:
+			c = choice[0].lower()
+			if c == "y":
+				print("Beginning installation...")
+				import subprocess
+				code = subprocess.call(["pip", "install", "windows-curses"])
+				if code:
+					print("Failed to install windows-curses.")
+					exit(code)
+				break
+			elif c == "n":
+				exit()
+			else:
+				print("Please enter Y or N")
+	import curses
+	os.system("cls" if os.name == "nt" else "clear")
 	
 import random, time, textwrap
 import math
@@ -2020,7 +2039,7 @@ except KeyboardInterrupt:
 	curses.echo()
 	curses.endwin()
 	import os
-	os.system("clear")
+	os.system("cls" if os.name == "nt" else "clear")
 	raise
 else:
 	curses.nocbreak()
