@@ -1619,7 +1619,7 @@ class Monster(Entity):
 		xdist = player.x - self.x
 		ydist = player.y - self.y
 		dist = abs(xdist) + abs(ydist)
-		pen = max(dist - 3, 0)
+		pen = max(dist - 2, 0)
 		guessplayer = dice(1, 20) + div_rand(self.WIS - 10, 2) - pen >= dice(1, 20) + div_rand(player.DEX - 10, 2)
 		
 		chance = 2 if dist <= 1 else 6
