@@ -1621,7 +1621,7 @@ class Monster(Entity):
 		ydist = player.y - self.y
 		dist = abs(xdist) + abs(ydist)
 		chance = 2 if dist <= 1 else 6
-		guessplayer = guessplayer and random.randint(1, chance	) == 1	
+		guessplayer = guessplayer and random.randint(1, chance) == 1	
 		return guessplayer
 		
 	def guess_rand_invis(self):
