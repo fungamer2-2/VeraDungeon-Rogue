@@ -30,7 +30,7 @@ from itertools import islice, chain
 from os import get_terminal_size
 
 def dice(num, sides):
-	"Rolls a given numver of dice with a given number of dice and takes the sum"
+	"Rolls a given number of dice with a given number of dice and takes the sum"
 	return sum(random.randint(1, sides) for _ in range(num))
 
 def div_rand(x, y):
@@ -50,6 +50,14 @@ def rand_weighted(*pairs):
 	names, weights = list(zip(*pairs))
 	return random.choices(names, weights=weights)[0]
 
+def d20_prob(DC, mod, nat1=False, nat20=False):
+	num_over = 21 - DC + mod
+	if nat1:
+		num_over = min(num_over, 19)
+	if nat20:
+		num_over = max(num_over, 1)
+	return max(0, min(1, num_over/20))
+
 def to_hit_prob(AC, hit_mod=0, adv=False, disadv=False):
 	"""
 	Calculates the percentage chance of successfully landing a hit
@@ -59,8 +67,7 @@ def to_hit_prob(AC, hit_mod=0, adv=False, disadv=False):
 	if adv and disadv:
 		adv = False
 		disadv = False
-	num_over = max(1, min(21 - AC + hit_mod, 19))
-	res = num_over/20
+	res = d20_prob(AC, hit_mod, True, True)
 	if adv:
 		res = 1-((1 - res)**2)
 	elif disadv:
@@ -407,6 +414,7 @@ class Game:
 		add_text("? - brings up this menu again")
 		add_text(". - wait a turn")
 		add_text("j - view item descriptions at this tile")
+		add_text("Q - quit the game")
 		add_line()
 		add_text("Press enter to continue")
 		screen = self.screen
@@ -662,7 +670,11 @@ class Game:
 		if armor:
 			ar_str = f"{armor.name} ({armor.protect})"
 			screen.addstr(3, wd - len(ar_str), ar_str)
-		
+		detect = self.player.detectability()
+		if detect is not None:
+			stealth = round(1/max(detect, 0.01), 1) - 1
+			det_str = f"{stealth} stealth"
+			screen.addstr(4, wd - len(det_str), det_str)
 		
 		try:
 			screen.move(board.rows + offset, 0)
@@ -1057,8 +1069,21 @@ class WearArmor(Activity):
 		g = player.g
 		g.print_msg(f"You finish putting on your {self.armor.name}.")
 		
+class RemArmor(Activity):
+	
+	def __init__(self, armor):
+		super().__init__(f"removing your {armor.name}", 20)
+		self.armor = armor
+		
+	def on_finished(self, player):
+		player.armor = None
+		g = player.g
+		g.print_msg(f"You finish removing your {self.armor.name}.")
+				
 class Armor(Item):
 	description = "This is armor. It may protect you from attacks."
+	stealth_pen = 0
+	dex_mod_softcap = None #This represents the softcap for dexterity bonus to AC
 	
 	def __init__(self, name, symbol, protect):
 		super().__init__(name, symbol)
@@ -1067,10 +1092,11 @@ class Armor(Item):
 	def use(self, player):
 		g = player.g
 		if player.armor and player.armor.name == self.name:
-			g.print_msg(f"You are already wearing {self.name}!")
-			return False
-		g.print_msg(f"You begin putting on your {self.name}.")
-		player.activity = WearArmor(self)
+			if g.yes_no(f"Take off your {self.name}?"):
+				player.activity = RemArmor(self)
+		else:
+			g.print_msg(f"You begin putting on your {self.name}.")
+			player.activity = WearArmor(self)
 		return False #Do not remove armor from inventory
 
 class LeatherArmor(Armor):
@@ -1088,6 +1114,19 @@ class ChainShirt(Armor):
 	def __init__(self):
 		super().__init__("chain shirt", "C", 3)
 
+class ScaleMail(Armor):
+	stealth_pen = 0
+	dex_mod_softcap = 2
+				
+	def __init__(self):
+		super().__init__("scale mail", "M", 4)
+
+class HalfPlate(Armor):
+	stealth_pen = 5
+	dex_mod_softcap = 2
+				
+	def __init__(self):
+		super().__init__("half-plate", "H", 5)
 
 class Player(Entity):
 	
@@ -1112,6 +1151,16 @@ class Player(Entity):
 		
 	def get_ac_bonus(self, avg=False):
 		s = calc_mod(self.DEX, avg)
+		if self.armor:
+			armor = self.armor
+			if armor.dex_mod_softcap is not None:
+				softcap = armor.dex_mod_softcap
+				if s > softcap: #Reduce any excess above the softcap
+					diff = s - softcap
+					if avg:
+						s = softcap + diff / 4
+					else:
+						s = softcap + div_rand(diff, 4)
 		if self.has_effect("Haste"):
 			s += 2
 		return s
@@ -1269,7 +1318,35 @@ class Player(Entity):
 				del self.effects[effect]
 				self.g.print_msg(eff.rem_msg)
 				eff.on_expire(self)
-	
+			
+	def stealth_mod(self):
+		mod = 0
+		if self.did_attack:
+			mod -= 5
+		if self.has_effect("Invisible"):
+			mod += 5
+		if self.armor:
+			if self.armor.stealth_pen > 0:
+				mod -= self.armor.stealth_pen
+		return mod
+		
+	def detectability(self):
+		d = []
+		mons = list(filter(lambda m: not m.is_aware, self.monsters_in_fov()))
+		if not mons:
+			return None 
+		mod = self.stealth_mod() + calc_mod(self.DEX, avg=True)
+		total_stealth = 1
+		for m in mons:
+			perc = m.passive_perc - 5*m.has_effect("Asleep")
+			stealth_prob = d20_prob(perc, mod, nat1=True)	
+			if not self.did_attack:
+				stealth_prob += (1 - stealth_prob)/2
+			total_stealth *= stealth_prob
+		#total_stealth is the chance of remaining UNdetected
+		#To get the detectability, invert it
+		return 1 - total_stealth
+		
 	def do_turn(self):	
 		if self.HP < self.MAX_HP:
 			self.ticks += 1
@@ -1277,11 +1354,7 @@ class Player(Entity):
 				self.HP += 1
 		for e in list(self.effects.keys()):
 			self.adjust_duration(e, -1)
-		mod = 0
-		if self.did_attack:
-			mod -= 5
-		if self.has_effect("Invisible"):
-			mod += 5
+		mod = self.stealth_mod()
 		for m in self.g.monsters:
 			m.check_timer -= 1
 			if m.check_timer <= 0 or self.did_attack:
@@ -1839,9 +1912,10 @@ class BrownBear(Monster):
 	diff = 5
 	speed = 40
 	min_level = 15
-	AC = 11
+	AC = 10
 	WIS = 12
 	to_hit = 3
+	armor = 1
 	passive_perc = 13
 	attacks = [
 		Attack((2, 8), 3, "The {0} bites you"),
@@ -1852,9 +1926,9 @@ class BrownBear(Monster):
 		super().__init__(g, "brown bear", "&", 68, False)
 
 class GiantEagle(Monster):
+	diff = 5
 	AC = 13
 	WIS = 12
-	diff = 5
 	min_level = 16
 	to_hit = 5
 	passive_perc = 14
@@ -2001,6 +2075,11 @@ try:
 				g.help_menu()
 			elif char == ".": #Wait a turn
 				g.player.energy = 0
+			elif char == "Q": #Quit
+				if g.yes_no("Are you sure you want to quit the game?"):
+					curses.nocbreak()
+					curses.echo()
+					exit()
 			elif char == "j": #View descriptions of items on this tile
 				items = g.board.get(g.player.x, g.player.y).items
 				for item in items:
