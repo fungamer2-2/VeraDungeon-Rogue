@@ -95,7 +95,7 @@ def display_prob(perc):
 	else:
 		perc = math.floor(perc + 0.5)
 	return f"{perc}%"
-
+	
 class Tile:
 	
 	def __init__(self, passable, symbol, stair=False):
@@ -535,12 +535,16 @@ class Game:
 				(ConfusionScroll, 2)
 			)
 			place_item(typ)
-		if self.level > 1 and random.randint(1, 100) <= 60:
+		if self.level > 1 and random.randint(1, 100) <= min(55 + self.level, 80):
 			types = [LeatherArmor]
-			if self.level > 3:
+			if self.level > 2:
 				types.append(HideArmor)
-			if self.level > 6:
+			if self.level > 4:
 				types.append(ChainShirt)
+			if self.level > 6:
+				types.append(ScaleMail)
+			if self.level > 8:
+				types.append(HalfPlate)
 			num = 1
 			if self.level > random.randint(1, 3) and random.randint(1, 3) == 1:
 				num += 1
@@ -596,7 +600,7 @@ class Game:
 		board = self.board
 		screen.clear()
 		p = self.player
-		screen.addstr(0, 0, f"HP {p.HP}/{p.MAX_HP} | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
+		screen.addstr(0, 0, f"HP {p.HP}/{p.get_max_hp()} | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
 		fov = self.player.fov
 		for point in fov:
 			board.get(*point).revealed = True
@@ -672,7 +676,7 @@ class Game:
 			screen.addstr(3, wd - len(ar_str), ar_str)
 		detect = self.player.detectability()
 		if detect is not None:
-			stealth = round(1/max(detect, 0.01), 1) - 1
+			stealth = round(1/max(detect, 0.01) - 1, 1)
 			det_str = f"{stealth} stealth"
 			screen.addstr(4, wd - len(det_str), det_str)
 		
@@ -917,13 +921,14 @@ class HealthPotion(Item):
 		
 	def use(self, player):
 		g = player.g
-		if player.HP >= player.MAX_HP:
+		MAX_HP = player.get_max_hp()
+		if player.HP >= MAX_HP:
 			g.print_msg("Your HP is already full!")
 			return False
 		else:
-			recover = 10 + random.randint(0, div_rand(player.MAX_HP, 4)) + random.randint(0, div_rand(player.MAX_HP, 4))
+			recover = 10 + random.randint(0, div_rand(MAX_HP, 4)) + random.randint(0, div_rand(MAX_HP, 4))
 			g.print_msg("You recover some HP.")
-			player.HP = min(player.MAX_HP, player.HP + recover)
+			player.HP = min(MAX_HP, player.HP + recover)
 			return True
 			
 class SpeedPotion(Item):
@@ -1126,7 +1131,7 @@ class HalfPlate(Armor):
 	dex_mod_softcap = 2
 				
 	def __init__(self):
-		super().__init__("half-plate", "H", 5)
+		super().__init__("half-plate", "A", 5)
 
 class Player(Entity):
 	
@@ -1144,10 +1149,12 @@ class Player(Entity):
 		self.speed = 30
 		self.STR = 10
 		self.DEX = 10
+		self.hp_drain = 0
 		self.effects = {}
 		self.armor = None
 		self.activity = None
 		self.did_attack = False
+		self.last_attacked = False
 		
 	def get_ac_bonus(self, avg=False):
 		s = calc_mod(self.DEX, avg)
@@ -1164,6 +1171,9 @@ class Player(Entity):
 		if self.has_effect("Haste"):
 			s += 2
 		return s
+		
+	def get_max_hp(self):
+		return max(self.MAX_HP - self.hp_drain, 0)
 		
 	def get_speed(self):
 		speed = self.speed
@@ -1204,10 +1214,7 @@ class Player(Entity):
 			self.g.print_msg(f"You leveled up to level {(self.level)}!", "green")
 			self.MAX_HP = 100 + (self.level - 1)*15
 	
-	def take_damage(self, dam):
-		if dam <= 0:
-			return
-		self.HP -= dam
+	def interrupt(self):
 		if self.resting:
 			self.g.print_msg("Your rest was interrupted.", "yellow")
 			self.resting = False
@@ -1215,12 +1222,28 @@ class Player(Entity):
 			if not self.g.yes_no(f"Continue {self.activity.name}?"):
 				self.g.print_msg(f"You stop {self.activity.name}.")
 				self.activity = None
+	
+	def drain(self, amount):
+		if amount <= 0:
+			return
+		self.hp_drain += amount
+		self.HP = min(self.HP, self.get_max_hp())
+		self.interrupt()
+		if self.get_max_hp() <= 0:
+			self.g.print_msg("You have died!", "red")
+			self.dead = True	
+	
+	def take_damage(self, dam):
+		if dam <= 0:
+			return
+		self.HP -= dam
+		self.interrupt()
 			
 		if self.HP <= 0:
 			self.HP = 0
 			self.g.print_msg("You have died!", "red")
 			self.dead = True
-		elif self.HP <= self.MAX_HP // 4:
+		elif self.HP <= self.get_max_hp() // 4:
 			self.g.print_msg("*** WARNING: Your HP is low! ***", "red")
 
 	def rand_place(self):
@@ -1321,7 +1344,7 @@ class Player(Entity):
 			
 	def stealth_mod(self):
 		mod = 0
-		if self.did_attack:
+		if self.last_attacked:
 			mod -= 5
 		if self.has_effect("Invisible"):
 			mod += 5
@@ -1340,18 +1363,22 @@ class Player(Entity):
 		for m in mons:
 			perc = m.passive_perc - 5*m.has_effect("Asleep")
 			stealth_prob = d20_prob(perc, mod, nat1=True)	
-			if not self.did_attack:
+			if not self.last_attacked:
 				stealth_prob += (1 - stealth_prob)/2
 			total_stealth *= stealth_prob
 		#total_stealth is the chance of remaining UNdetected
 		#To get the detectability, invert it
 		return 1 - total_stealth
 		
-	def do_turn(self):	
-		if self.HP < self.MAX_HP:
+	def do_turn(self):
+		self.last_attacked = self.did_attack
+		if self.HP < self.get_max_hp():
 			self.ticks += 1
 			if self.ticks % 6 == 0:
 				self.HP += 1
+		if self.ticks % 6 == 0:
+			if self.hp_drain > 0 and random.randint(1, 3) == 1:
+				self.hp_drain -= 1
 		for e in list(self.effects.keys()):
 			self.adjust_duration(e, -1)
 		mod = self.stealth_mod()
@@ -1467,7 +1494,7 @@ class Attack:
 		self.to_hit = to_hit
 		self.msg = msg
 		
-	def on_hit(self, player):
+	def on_hit(self, player, dmg):
 		pass
 								
 class Monster(Entity):
@@ -1568,6 +1595,8 @@ class Monster(Entity):
 	def melee_attack_player(self, attack=None, force=False):
 		if attack is None:
 			attack = random.choice(self.attacks)
+			if isinstance(attack, list):
+				attack = random.choice(attack)
 		player = self.g.player
 		roll = dice(1, 20)
 		disadv = False
@@ -1595,11 +1624,14 @@ class Monster(Entity):
 			if damage:
 				self.g.print_msg(attack.msg.format(self.name) + f" for {damage} damage!", "red")
 				player.take_damage(damage)
+				attack.on_hit(player, damage)
 			else:
 				self.g.print_msg(attack.msg.format(self.name) + " but does no damage.")
 			
 	def do_melee_attack(self):
 		for att in self.attacks:
+			if isinstance(att, list):
+				att = random.choice(att)
 			self.melee_attack_player(att)
 			
 	def sees_player(self):
@@ -1901,6 +1933,7 @@ class BlackBear(Monster):
 	AC = 11
 	WIS = 12
 	to_hit = 3
+	armor = 1
 	passive_perc = 13
 	attacks = [
 		Attack((2, 6), 3, "The {0} bites you"),
@@ -1941,7 +1974,102 @@ class GiantEagle(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "giant eagle", "E", 52, False)
-						
+
+class Ogre(Monster):
+	diff = 6
+	AC = 9
+	WIS = 7
+	min_level = 20
+	to_hit = 6
+	armor = 2
+	passive_perc = 8
+	attacks = [
+		Attack((2, 6), 6, "The {0} hits you with its club"),
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "ogre", "J", 118, False)
+
+class PolarBear(Monster):
+	diff = 6
+	speed = 40
+	min_level = 18
+	AC = 10
+	WIS = 13
+	to_hit = 7
+	armor = 2
+	passive_perc = 13
+	attacks = [
+		Attack((2, 8), 7, "The {0} bites you"),
+		Attack((4, 6), 7, "The {0} claws you")
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "polar bear", "P", 84, False)
+
+class Rhinoceros(Monster):
+	diff = 6
+	speed = 40
+	min_level = 19
+	AC = 9
+	WIS = 12
+	to_hit = 7
+	armor = 2
+	passive_perc = 13
+	attacks = [
+		Attack((2, 8), 7, "The {0} gores you")
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "rhinoceros", "Y", 90, False)
+
+class WightLifeDrain(Attack):
+	
+	def __init__(self):
+		super().__init__((2, 6), 4, "The {0} uses life drain")
+	
+	def on_hit(self, player, dmg):
+		g = player.g
+		g.print_msg("Your life force is drained!", "red")
+		player.drain(max(1, mult_rand_frac(dmg, 2, 5)))
+
+class Wight(Monster):
+	diff = 7
+	speed = 30
+	min_level = 21
+	AC = 12
+	WIS = 13
+	to_hit = 4
+	armor = 2
+	passive_perc = 13
+	attacks = [
+		Attack((2, 8), 7, "The {0} hits you with its longsword"),
+		[
+			Attack((2, 8), 7, "The {0} hits you with its longsword"),
+			WightLifeDrain()
+		]
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "wight", "T", 90, False)
+
+class Sasquatch(Monster):
+	diff = 7
+	speed = 40
+	min_level = 22
+	AC = 10
+	WIS = 16
+	to_hit = 6
+	armor = 2
+	passive_perc = 17
+	attacks = [
+		Attack((2, 8), 6, "The {0} punches you with its fist"),
+		Attack((2, 8), 6, "The {0} punches you with its fist")
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "sasquatch", "Q", 118, False)
+			
 g = Game()
 try:
 	g.print_msg("Press \"?\" if you want to view the controls.")
@@ -1952,7 +2080,7 @@ try:
 		if g.player.resting:
 			time.sleep(0.005)
 			g.player.energy = 0
-			if g.player.HP >= g.player.MAX_HP:
+			if g.player.HP >= g.player.get_max_hp():
 				g.print_msg("HP restored.", "green")
 				g.player.resting = False
 				g.player.energy = random.randint(1, g.player.get_speed())
