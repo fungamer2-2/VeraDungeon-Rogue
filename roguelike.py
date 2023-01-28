@@ -1182,7 +1182,7 @@ class Player(Entity):
 		return int(speed)
 		
 	def max_exp(self):
-		return 40 + (self.level - 1) * 10
+		return 40 + (self.level - 1) * 12
 		
 	def gain_exp(self, amount):
 		self.exp += amount
@@ -1386,7 +1386,7 @@ class Player(Entity):
 			m.check_timer -= 1
 			if m.check_timer <= 0 or self.did_attack:
 				m.reset_check_timer()
-				if not m.is_aware:
+				if not m.is_aware or self.did_attack: #If you attack while invisible, maybe alert the nearby monsters to your position
 					roll = dice(1, 20)
 					perc = m.passive_perc
 					if m.has_effect("Asleep"):
@@ -1433,7 +1433,8 @@ class Player(Entity):
 			mon.is_aware = True
 			mon.remove_effect("Asleep")
 		mon.on_player_attacked()
-		self.did_attack = True
+		if not sneak_attack: #If we did a sneak attack, let's continue to be stealthy
+			self.did_attack = True
 		self.adjust_duration("Invisible", -random.randint(0, 6))
 		if not hits:
 			self.g.print_msg(f"Your attack misses the {mon.name}.")
