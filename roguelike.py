@@ -539,11 +539,11 @@ class Game:
 			types = [LeatherArmor]
 			if self.level > 2:
 				types.append(HideArmor)
-			if self.level > 4:
+			if self.level > 5:
 				types.append(ChainShirt)
-			if self.level > 6:
-				types.append(ScaleMail)
 			if self.level > 8:
+				types.append(ScaleMail)
+			if self.level > 10:
 				types.append(HalfPlate)
 			num = 1
 			if self.level > random.randint(1, 3) and random.randint(1, 3) == 1:
@@ -2146,9 +2146,19 @@ try:
 						string += f" | {display_prob(be_hit*100)} to hit you ({display_prob(be_hit_disadv*100)} w/disadv.)"
 						string += " | Attacks: "
 						for i in range(len(m.attacks)):
-							att = m.attacks[i] 
-							x, y = att.dmg
-							string += f"{x}d{y}"
+							att = m.attacks[i]
+							if isinstance(att, list):
+								d = []
+								for a in att:
+									x, y = a.dmg
+									d.append(f"{x}d{y}")
+									if i < len(att) - 1:
+										d.append(", ")
+								d = "".join(d)
+								string += f"({d})"
+							else:
+								x, y = att.dmg
+								string += f"{x}d{y}"
 							if i < len(m.attacks) - 1:
 								string += ", "
 						if m.armor > 0:
