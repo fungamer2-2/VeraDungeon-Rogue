@@ -1,7 +1,7 @@
 # Roguelike 
 My roguelike game in Python
 
-Current version: 0.1 <br />
+Current version: 0.2 <br />
 (Note: This is currently a work in progress)
 
 To play the game, all you need is a Python 3 Interpreter<br />
