@@ -1115,13 +1115,14 @@ class HideArmor(Armor):
 		super().__init__("hide armor", "H", 2)
 		
 class ChainShirt(Armor):
+	dex_mod_softcap = 4
 				
 	def __init__(self):
 		super().__init__("chain shirt", "C", 3)
 
 class ScaleMail(Armor):
-	stealth_pen = 0
-	dex_mod_softcap = 2
+	stealth_pen = 2
+	dex_mod_softcap = 3
 				
 	def __init__(self):
 		super().__init__("scale mail", "M", 4)
@@ -1132,6 +1133,28 @@ class HalfPlate(Armor):
 				
 	def __init__(self):
 		super().__init__("half-plate", "A", 5)
+
+class ChainMail(Armor):
+	stealth_pen = 7
+	dex_mod_softcap = 1
+				
+	def __init__(self):
+		super().__init__("chainmail", "I", 6)
+
+class SplintArmor(Armor):
+	stealth_pen = 10
+	dex_mod_softcap = 0
+				
+	def __init__(self):
+		super().__init__("splint armor", "S", 7)
+
+class PlateArmor(Armor):
+	stealth_pen = 12
+	dex_mod_softcap = -1
+				
+	def __init__(self):
+		super().__init__("plate armor", "T", 8)
+
 
 class Player(Entity):
 	
