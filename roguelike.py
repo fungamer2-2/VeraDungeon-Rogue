@@ -1182,7 +1182,7 @@ class Player(Entity):
 		return int(speed)
 		
 	def max_exp(self):
-		return 40 + (self.level - 1) * 12
+		return 50 + (self.level - 1) * 15
 		
 	def gain_exp(self, amount):
 		self.exp += amount
@@ -1190,12 +1190,12 @@ class Player(Entity):
 		while self.exp >= self.max_exp():
 			self.exp -= self.max_exp()
 			self.level += 1
-			if self.level % 2 == 0:		
+			if self.level % 2 == 1:		
 				if random.randint(1, 2) == 1:	
 					self.STR += 1
 				else:
 					self.DEX += 1
-			if self.level % 3 == 0:
+			if self.level % 3 == 1:
 				self.g.print_msg(f"You leveled up to level {(self.level)}!", "green")
 				old_level = self.level
 				while True:
