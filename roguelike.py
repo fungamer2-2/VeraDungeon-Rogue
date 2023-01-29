@@ -1128,28 +1128,28 @@ class ScaleMail(Armor):
 		super().__init__("scale mail", "M", 4)
 
 class HalfPlate(Armor):
-	stealth_pen = 5
+	stealth_pen = 4
 	dex_mod_softcap = 2
 				
 	def __init__(self):
 		super().__init__("half-plate", "A", 5)
 
 class ChainMail(Armor):
-	stealth_pen = 7
+	stealth_pen = 6
 	dex_mod_softcap = 1
 				
 	def __init__(self):
 		super().__init__("chainmail", "I", 6)
 
 class SplintArmor(Armor):
-	stealth_pen = 10
+	stealth_pen = 8
 	dex_mod_softcap = 0
 				
 	def __init__(self):
 		super().__init__("splint armor", "S", 7)
 
 class PlateArmor(Armor):
-	stealth_pen = 12
+	stealth_pen = 10
 	dex_mod_softcap = -1
 				
 	def __init__(self):
