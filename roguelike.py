@@ -787,6 +787,18 @@ class Entity:
 	def can_see(self, x, y):
 		return (x, y) in self.fov
 		
+	def distance(self, other):
+		return abs(self.x - other.x) + abs(self.y - other.y)
+	
+	def distance_pos(self, pos):
+		return abs(self.x - pos[0]) + abs(self.y - pos[1])
+	
+	def move_path(self):
+		if self.curr_target == (self.x, self.y):
+			return False
+		self.path_towards(*self.current_target)
+		return True
+		
 	def path_towards(self, x, y):
 		if self.curr_target == (x, y) and self.curr_path and self.move_to(*self.curr_path.popleft()):
 			if (self.x, self.y) == (x, y):
@@ -1325,10 +1337,13 @@ class Player(Entity):
 		if self.g.monster_at(self.x + dx, self.y + dy):
 			self.attack(dx, dy)
 			return True
+		board = self.g.board
+		if not board.is_passable(self.x + dx, self.y + dy):
+			return False
 		if self.grappled_by:
 			stat = max(self.DEX, self.STR) #Let's use the higher of the two
 			for m in self.grappled_by[:]:
-				if dice(1, 20) + stat > dice(1, 20):
+				if dice(1, 20) + stat >= m.grapple_dc:
 					if self.STR > self.DEX or (self.STR == self.DEX and random.randint(1, 2) == 1):
 						break_method = "force yourself"
 					else:
@@ -1510,7 +1525,10 @@ class Player(Entity):
 			dam = max(dam, min_dam)
 			mon.HP -= dam
 			if dam > 0:
-				self.g.print_msg(f"You hit the {mon.name} for {dam} damage.")
+				msg = f"You hit the {mon.name} for {dam} damage."
+				if mon.HP > 0:
+					msg += f" Its HP: {mon.HP}/{mon.MAX_HP}")
+				self.g.print_msg(msg)
 				if crit:
 					self.g.print_msg("Critical!", "green")
 			else:
@@ -1541,7 +1559,6 @@ class Player(Entity):
 						tile.symbol = ">"
 						tile.stair = True
 						break
-					pass
 			else:
 				 self.g.print_msg(f"It has {mon.HP} HP")
 
@@ -1563,6 +1580,7 @@ class Monster(Entity):
 	to_hit = 0
 	passive_perc = 11
 	WIS = 10
+	grapple_dc = 10
 	armor = 0
 	attacks = [Attack((1, 3), 0)]
 	
@@ -1582,7 +1600,7 @@ class Monster(Entity):
 		self.is_aware = False
 		self.check_timer = 1
 		self.effects = {}
-		
+				
 	def get_speed(self):
 		speed = self.speed
 		#When effects modify speed, the effects will go here
@@ -1647,6 +1665,8 @@ class Monster(Entity):
 		armor = player.armor
 		if armor:
 			damage -= random.randint(1, armor.protect*4) #Armor can reduce damage
+			if damage <= 0:
+				return 0
 		if player.has_effect("Resistance"):
 			damage = div_rand(damage, 2)
 			if random.randint(1, 2) == 1: #Don't tell them every time
@@ -1759,13 +1779,23 @@ class Monster(Entity):
 				if not self.move(*random.choice(dirs)):
 					self.energy -= div_rand(self.get_speed(), 2) #We bumped into something while confused
 			self.energy = min(self.energy, 0)
+		elif self.has_effect("Frightened"):
+			if self.sees_player():
+				dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
+				random.shuffle(dirs)
+				dist = self.distance(player)
+				for dx, dy in dirs:
+					newx, newy = self.x + dx, self.y + dy	
+					newdist = abs(newx - player.x) + abs(newy - player.y)
+					if newdist >= dist:
+						self.move(dx, dy)
+						break
 		elif self.is_aware and (self.sees_player() or guessplayer):
 			xdist = player.x - self.x
 			ydist = player.y - self.y
-			dist = abs(xdist) + abs(ydist)
 			self.last_seen = (player.x, player.y)
 			self.track_timer = random.randint(25, 65) #How long we remember the player for when out of line of sight
-			if dist <= 1:
+			if self.distance(player) <= 1:
 				self.energy -= self.get_speed()
 				self.do_melee_attack()
 			elif self.ranged and self.should_use_ranged():
@@ -1902,7 +1932,30 @@ class Kobold(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "kobold", "K", 10, None, (2, 4))
+
+class CrabClaw(Attack):
+	
+	def __init__(self):
+		super().__init__((2, 6), 3, "The {0} claws you")
 		
+	def on_hit(self, player, mon, dmg):
+		if random.randint(1, 3) < 3 and player.add_grapple(mon):
+			player.g.print_msg(f"The {mon.name} grapples you with its claw!", "red")
+
+class GiantCrab(Monster):
+	diff = 2
+	min_level = 4
+	AC = 12
+	to_hit = 4
+	armor = 3
+	passive_perc = 9
+	attacks = [
+		Attack((2, 4), 4, "The {0} bites you")
+	]
+	
+	def __init__(self, g):
+		super().__init__(g, "giant crab", "C", 26, False)	
+						
 class GiantRat(Monster):
 	diff = 2
 	min_level = 5
