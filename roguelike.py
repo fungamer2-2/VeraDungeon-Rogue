@@ -1329,11 +1329,15 @@ class Player(Entity):
 			stat = max(self.DEX, self.STR) #Let's use the higher of the two
 			for m in self.grappled_by[:]:
 				if dice(1, 20) + stat > dice(1, 20):
-					self.g.print_msg(f"You break out of the {m.name}'s grapple.")
+					if self.STR > self.DEX or (self.STR == self.DEX and random.randint(1, 2) == 1):
+						break_method = "force yourself"
+					else:
+						break_method = "wriggle"
+					self.g.print_msg(f"You {break_method} out of the {m.name}'s grapple.")
 					self.remove_grapple(m)
 					m.energy -= m.get_speed() // 2
 				else:
-					self.g.print_msg(f"You fail to break out of the {m.name}'s grapple.", "yellow")
+					self.g.print_msg(f"You fail to escape the {m.name}'s grapple.", "yellow")
 			if self.grappled_by:
 				self.energy -= self.get_speed()	
 			return True
