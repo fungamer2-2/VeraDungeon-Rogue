@@ -1343,7 +1343,7 @@ class Player(Entity):
 		if self.grappled_by:
 			stat = max(self.DEX, self.STR) #Let's use the higher of the two
 			for m in self.grappled_by[:]:
-				if dice(1, 20) + stat >= m.grapple_dc:
+				if dice(1, 20) + calc_mod(stat) >= m.grapple_dc:
 					if self.STR > self.DEX or (self.STR == self.DEX and random.randint(1, 2) == 1):
 						break_method = "force yourself"
 					else:
@@ -1352,9 +1352,8 @@ class Player(Entity):
 					self.remove_grapple(m)
 					m.energy -= m.get_speed() // 2
 				else:
-					self.g.print_msg(f"You fail to escape the {m.name}'s grapple.", "yellow")
-			if self.grappled_by:
-				self.energy -= self.get_speed()	
+					self.g.print_msg(f"You fail to escape the {m.name}'s grapple.", "yellow")	
+			self.energy -= self.get_speed()	
 			return True
 		if not super().move(dx, dy):
 			return False
@@ -1527,7 +1526,7 @@ class Player(Entity):
 			if dam > 0:
 				msg = f"You hit the {mon.name} for {dam} damage."
 				if mon.HP > 0:
-					msg += f" Its HP: {mon.HP}/{mon.MAX_HP}")
+					msg += f" Its HP: {mon.HP}/{mon.MAX_HP}"
 				self.g.print_msg(msg)
 				if crit:
 					self.g.print_msg("Critical!", "green")
@@ -1559,9 +1558,7 @@ class Player(Entity):
 						tile.symbol = ">"
 						tile.stair = True
 						break
-			else:
-				 self.g.print_msg(f"It has {mon.HP} HP")
-
+			
 class Attack:
 	
 	def __init__(self, dmg, to_hit, msg="The {0} attacks you"):
@@ -1633,7 +1630,7 @@ class Monster(Entity):
 			self.effects[name] = 0
 		if name in ["Asleep", "Stunned"]:
 			player = self.g.player
-			player.remove_grapple(name)
+			player.remove_grapple(self)
 		self.effects[name] += duration
 	
 	def do_turn(self):
@@ -1950,7 +1947,7 @@ class GiantCrab(Monster):
 	armor = 3
 	passive_perc = 9
 	attacks = [
-		Attack((2, 4), 4, "The {0} bites you")
+		CrabClaw()
 	]
 	
 	def __init__(self, g):
