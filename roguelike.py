@@ -38,10 +38,10 @@ def div_rand(x, y):
 	sign = 1
 	if (x > 0) ^ (y > 0):
 		sign = -1
-		x = abs(x)
-		y = abs(y)
+	x = abs(x)
+	y = abs(y)
 	mod = x % y
-	return sign * x//y + (random.randint(1, y) <= mod)
+	return sign * (x//y + (random.randint(1, y) <= mod))
 
 def mult_rand_frac(num, x, y):
 	return div_rand(num*x, y)
@@ -514,19 +514,20 @@ class Game:
 						tile.items.append(typ())
 						break
 							
-		if random.randint(1, 5) < 5:
-			potential = []
-			if random.randint(1, 2) == 1:
-				potential.append(HealthPotion)
-			if random.randint(1, 4) == 1:
-				potential.append(ResistPotion)
-			if random.randint(1, 5) == 1:
-				potential.append(SpeedPotion)
-			if random.randint(1, 6) == 1:		
-				potential.append(InvisibilityPotion)
-			for p in potential:
-				if random.randint(1, 100) <= 70:
-					place_item(p)
+		if random.randint(1, 4) < 4:
+			types = [
+				(HealthPotion, 20),
+				(ResistPotion, 10),
+				(SpeedPotion, 8),
+				(InvisibilityPotion, 5)
+			]
+			for _ in range(4):
+				if random.randint(1, 100) <= 45:
+					typ = rand_weighted(*types)
+					place_item(typ)	
+				elif random.randint(1, 100) <= 60:
+					break
+		
 		if random.randint(1, 100) <= 38:
 			typ = rand_weighted(
 				(StunScroll, 1),
@@ -1178,6 +1179,17 @@ class Player(Entity):
 		self.activity = None
 		self.did_attack = False
 		self.last_attacked = False
+		self.grappled_by = []
+		
+	def add_grapple(self, mon):
+		if mon in self.grappled_by:
+			return False
+		self.grappled_by.append(mon)
+		return True
+			
+	def remove_grapple(self, mon):
+		if mon in self.grappled_by:
+			self.grappled_by.remove(mon)
 		
 	def get_ac_bonus(self, avg=False):
 		s = calc_mod(self.DEX, avg)
@@ -1283,7 +1295,7 @@ class Player(Entity):
 			y = random.randint(1, board.rows - 2)
 			if board.is_passable(x, y) and (x, y) != oldloc:
 				seeslastpos = board.line_of_sight((x, y), oldloc)
-				if seeslastpos and random.randint(1, 2) == 1:
+				if seeslastpos and random.randint(1, 3) == 1:
 					continue
 				if not seeslastpos: #We teleported out of sight
 					for m in self.monsters_in_fov():
@@ -1292,6 +1304,7 @@ class Player(Entity):
 				self.x = x
 				self.y = y
 				self.fov = self.calc_fov()
+				self.grappled_by.clear()
 				break
 		else:
 			self.g.print_msg("You feel yourself begin to teleport, but nothing happens.")
@@ -1309,10 +1322,22 @@ class Player(Entity):
 			adj.append(m)
 		if (m := self.g.get_monster(self.x, self.y+1)):
 			adj.append(m)
+		if self.g.monster_at(self.x + dx, self.y + dy):
+			self.attack(dx, dy)
+			return True
+		if self.grappled_by:
+			stat = max(self.DEX, self.STR) #Let's use the higher of the two
+			for m in self.grappled_by[:]:
+				if dice(1, 20) + stat > dice(1, 20):
+					self.g.print_msg(f"You break out of the {m.name}'s grapple.")
+					self.remove_grapple(m)
+					m.energy -= m.get_speed() // 2
+				else:
+					self.g.print_msg(f"You fail to break out of the {m.name}'s grapple.", "yellow")
+			if self.grappled_by:
+				self.energy -= self.get_speed()	
+			return True
 		if not super().move(dx, dy):
-			if self.g.monster_at(self.x + dx, self.y + dy):
-				self.attack(dx, dy)
-				return True
 			return False
 		self.fov = self.calc_fov()
 		speed = self.get_speed()
@@ -1395,6 +1420,10 @@ class Player(Entity):
 		
 	def do_turn(self):
 		self.last_attacked = self.did_attack
+		for m in self.grappled_by[:]:
+			dist = abs(m.x - self.x) + abs(m.y - self.y)
+			if dist > 1:
+				self.remove_grapple(m)
 		if self.HP < self.get_max_hp():
 			self.ticks += 1
 			if self.ticks % 6 == 0:
@@ -1485,6 +1514,7 @@ class Player(Entity):
 			if mon.HP <= 0:
 				self.g.print_msg(f"The {mon.name} dies!", "green")
 				self.g.remove_monster(mon)
+				self.remove_grapple(mon)
 				lev = mon.diff - 1
 				gain = math.ceil(min(6 * 2**lev, 30 * 1.5**lev))
 				self.gain_exp(gain)
@@ -1518,7 +1548,7 @@ class Attack:
 		self.to_hit = to_hit
 		self.msg = msg
 		
-	def on_hit(self, player, dmg):
+	def on_hit(self, player, mon, dmg):
 		pass
 								
 class Monster(Entity):
@@ -1579,6 +1609,9 @@ class Monster(Entity):
 	def gain_effect(self, name, duration):
 		if name not in self.effects:
 			self.effects[name] = 0
+		if name in ["Asleep", "Stunned"]:
+			player = self.g.player
+			player.remove_grapple(name)
 		self.effects[name] += duration
 	
 	def do_turn(self):
@@ -1648,7 +1681,7 @@ class Monster(Entity):
 			if damage:
 				self.g.print_msg(attack.msg.format(self.name) + f" for {damage} damage!", "red")
 				player.take_damage(damage)
-				attack.on_hit(player, damage)
+				attack.on_hit(player, self, damage)
 			else:
 				self.g.print_msg(attack.msg.format(self.name) + " but does no damage.")
 			
@@ -1837,6 +1870,7 @@ class Bat(Monster):
 		#name, symbol, HP, ranged, ranged_dam
 		#ranged == None means there is a chance of it using a ranged attack
 		super().__init__(g, "bat", "w", 3, False)
+
 
 class Lizard(Monster):
 	min_level = 1
@@ -2052,10 +2086,10 @@ class WightLifeDrain(Attack):
 	def __init__(self):
 		super().__init__((2, 6), 4, "The {0} uses life drain")
 	
-	def on_hit(self, player, dmg):
+	def on_hit(self, player, mon, dmg):
 		g = player.g
 		g.print_msg("Your life force is drained!", "red")
-		player.drain(max(1, mult_rand_frac(dmg, 2, 5)))
+		player.drain(random.randint(1, dmg))
 
 class Wight(Monster):
 	diff = 7
