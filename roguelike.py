@@ -1186,6 +1186,7 @@ class Player(Entity):
 		self.STR = 10
 		self.DEX = 10
 		self.hp_drain = 0
+		self.poison = 0
 		self.effects = {}
 		self.armor = None
 		self.activity = None
@@ -1280,12 +1281,20 @@ class Player(Entity):
 			self.g.print_msg("You have died!", "red")
 			self.dead = True	
 	
-	def take_damage(self, dam):
+	def do_poison(self, amount):
+		self.poison += amount
+	
+	def take_damage(self, dam, poison=False):
 		if dam <= 0:
 			return
 		self.HP -= dam
-		self.interrupt()
-			
+		if not poison: #Poison damage should only interrupt activities if it's likely to be lethal
+			self.interrupt()
+		else:
+			if self.HP <= self.get_max_hp()//4 and self.poison >= self.HP:
+				if self.resting or self.activity:
+					self.g.print_msg("The amount of poison in your body is likely lethal!", "red")
+					self.interrupt()
 		if self.HP <= 0:
 			self.HP = 0
 			self.g.print_msg("You have died!", "red")
@@ -1350,7 +1359,7 @@ class Player(Entity):
 						break_method = "wriggle"
 					self.g.print_msg(f"You {break_method} out of the {m.name}'s grapple.")
 					self.remove_grapple(m)
-					m.energy -= m.get_speed() // 2
+					m.energy -= m.get_speed() #So they can't immediately re-grapple the player
 				else:
 					self.g.print_msg(f"You fail to escape the {m.name}'s grapple.", "yellow")	
 			self.energy -= self.get_speed()	
@@ -1442,7 +1451,16 @@ class Player(Entity):
 			dist = abs(m.x - self.x) + abs(m.y - self.y)
 			if dist > 1:
 				self.remove_grapple(m)
-		if self.HP < self.get_max_hp():
+		if self.poison > 0:
+			dmg = 1 + random.randint(0, self.poison // 6)
+			self.take_damage(dmg, poison=True)
+			self.poison -= dmg
+			if dmg > 3:
+				if random.randint(1, 2) == 1:
+					self.g.print_msg("You feel very sick.", "red")
+			elif random.randint(1, 3) == 1:
+				self.g.print_msg("You feel sick.", "red")
+		elif self.HP < self.get_max_hp():
 			self.ticks += 1
 			if self.ticks % 6 == 0:
 				self.HP += 1
@@ -1940,18 +1958,19 @@ class CrabClaw(Attack):
 			player.g.print_msg(f"The {mon.name} grapples you with its claw!", "red")
 
 class GiantCrab(Monster):
-	diff = 2
+	diff = 3
 	min_level = 4
 	AC = 12
-	to_hit = 4
-	armor = 3
+	WIS = 9
+	to_hit = 3
+	armor = 1
 	passive_perc = 9
 	attacks = [
 		CrabClaw()
 	]
 	
 	def __init__(self, g):
-		super().__init__(g, "giant crab", "C", 26, False)	
+		super().__init__(g, "giant crab", "C", 20, False)	
 						
 class GiantRat(Monster):
 	diff = 2
@@ -1965,6 +1984,30 @@ class GiantRat(Monster):
 	
 	def __init__(self, g):
 		super().__init__(g, "giant rat", "R", 14, False)
+
+class PoisonBite(Attack):
+	
+	def __init__(self):
+		super().__init__((2, 4), 6, "The {0} bites you")
+	
+	def on_hit(self, player, mon, dmg):
+		g = player.g
+		g.print_msg("You are poisoned!")
+		player.do_poison(dice(4, 6) + dice(1, 3))
+
+class GiantPoisonousSnake(Monster):
+	diff = 3
+	min_level = 8
+	AC = 14
+	WIS = 10
+	to_hit = 6
+	passive_perc = 10
+	attacks = [
+		PoisonBite()
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "giant poisonous snake", "S", 22, False)
 
 class Skeleton(Monster):
 	diff = 3
