@@ -1452,7 +1452,9 @@ class Player(Entity):
 			if dist > 1:
 				self.remove_grapple(m)
 		if self.poison > 0:
-			dmg = 1 + random.randint(0, self.poison // 6)
+			dmg = 1 + random.randint(0, self.poison // 8)
+			if dmg > self.poison:
+				dmg = self.poison
 			self.take_damage(dmg, poison=True)
 			self.poison -= dmg
 			if dmg > 3:
@@ -1498,6 +1500,7 @@ class Player(Entity):
 		if not mon.is_aware or self.has_effect("Invisible"):
 			adv = True
 		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) - 5 >= mon.passive_perc
+		sneak_attack = sneak_attack and random.randint(1, 3) < 3
 		if mon.has_effect("Asleep"):
 			sneak_attack = True
 		if adv:
@@ -1531,10 +1534,9 @@ class Player(Entity):
 			if crit:
 				dam += dice(1, 6)
 			if sneak_attack:
-				#Roll (1+(level-1)/4)d6 bonus damage
-				#A non-integer amount of dice, for example, (1.5)d6 is simulated like 1d6 + 0.5*(1d6)
-				scale_int = 1 + (self.level - 1) // 4
-				scale_mod = (self.level - 1) % 4
+				val = random.randint(1, self.level)
+				scale_int = 1 + (val - 1) // 4
+				scale_mod = (val - 1) % 4
 				dam += dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, 4)
 			dam += div_rand(self.STR - 10, 2)
 			dam -= random.randint(0, 2*mon.armor)
