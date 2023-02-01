@@ -1499,8 +1499,8 @@ class Player(Entity):
 		adv = False
 		if not mon.is_aware or self.has_effect("Invisible"):
 			adv = True
-		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) - 5 >= mon.passive_perc
-		sneak_attack = sneak_attack and random.randint(1, 3) < 3
+		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) >= mon.passive_perc
+		sneak_attack = sneak_attack and random.randint(1, 2) == 1
 		if mon.has_effect("Asleep"):
 			sneak_attack = True
 		if adv:
