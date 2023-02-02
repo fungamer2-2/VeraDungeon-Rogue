@@ -1,6 +1,8 @@
 # Roguelike 
 My roguelike game in Python
 
+Discord Server: https://discord.gg/dKRGTgxT65
+
 Current version: 0.2 <br />
 (Note: This is currently a work in progress)
 
