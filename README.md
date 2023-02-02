@@ -7,8 +7,7 @@ Current version: 0.2 <br />
 (Note: This is currently a work in progress)
 
 To play the game, all you need is a Python 3 Interpreter<br />
-(Due to use of walrus operators, this doesn't work for Python versions below 3.8, however this game has only been tested on Python 3.9<br />
-Also, note that the `curses` module doesn't work on Windows)
+(Due to use of walrus operators, this doesn't work for Python versions below 3.8, however this game has only been tested on Python 3.9)
 
 ### Controls<br />
 `wasd` keys to move around<br />
