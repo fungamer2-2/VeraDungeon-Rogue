@@ -83,7 +83,10 @@ def calc_mod(stat, avg=False):
 	
 def one_in(x):
 	return x <= 1 or random.randint(1, x) == 1
-	
+
+def x_in_y(x, y):
+	return random.randint(1, y) <= x	
+			
 def display_prob(perc):
 	if perc <= 0:
 		return "0%"
@@ -200,7 +203,7 @@ class Board:
 		NUM = random.randint(5, 8)
 		rooms = []
 		randchance = dice(2, 10)
-		if random.randint(1, 7) == 1:
+		if one_in(7):
 			randchance = 100
 		for i in range(NUM):
 			for _ in range(ATTEMPTS):
@@ -231,7 +234,7 @@ class Board:
 						pos2_y = ypos + random.randint(1, height - 2)
 						dx = 1 if pos1_x < pos2_x else -1
 						dy = 1 if pos1_y < pos2_y else -1
-						if random.randint(1, 2) == 1:
+						if one_in(2):
 							x = pos1_x
 							while x != pos2_x:
 								self.carve_at(x, pos1_y)
@@ -497,7 +500,7 @@ class Game:
 					break
 			m = typ(self)
 			if m.place_randomly():
-				if random.randint(1, 2) == 1:
+				if one_in(2):
 					fov = self.player.fov
 					los_tries = 100
 					while los_tries > 0:
@@ -519,19 +522,19 @@ class Game:
 							
 		if not one_in(4):
 			types = [
-				(HealthPotion, 20),
+				(HealthPotion, 25),
 				(ResistPotion, 10),
 				(SpeedPotion, 8),
 				(InvisibilityPotion, 5)
 			]
 			for _ in range(4):
-				if random.randint(1, 100) <= 45:
+				if x_in_y(45, 100):
 					typ = rand_weighted(*types)
 					place_item(typ)	
-				elif random.randint(1, 100) <= 60:
+				elif x_in_y(60, 100):
 					break
 		
-		if random.randint(1, 100) <= 38:
+		if x_in_y(3, 8):
 			typ = rand_weighted(
 				(StunScroll, 1),
 				(TeleportScroll, 2),
@@ -539,7 +542,7 @@ class Game:
 				(ConfusionScroll, 2)
 			)
 			place_item(typ)
-		if self.level > 1 and random.randint(1, 100) <= min(55 + self.level, 80):
+		if self.level > 1 and x_in_y(min(55 + self.level, 80), 100):
 			types = [LeatherArmor]
 			if self.level > 2:
 				types.append(HideArmor)
@@ -550,9 +553,9 @@ class Game:
 			if self.level > 10:
 				types.append(HalfPlate)
 			num = 1
-			if self.level > random.randint(1, 3) and random.randint(1, 3) == 1:
+			if self.level > random.randint(1, 3) and one_in(3):
 				num += 1
-				if self.level > random.randint(1, 6) and random.randint(1, 3) == 1:
+				if self.level > random.randint(1, 6) and one_in(3):
 					num += 1
 			for _ in range(num):
 				place_item(random.choice(types))
@@ -1294,9 +1297,9 @@ class Player(Entity):
 		if not poison: #Poison damage should only interrupt activities if it's likely to be lethal
 			self.interrupt()
 		else:
-			if self.HP <= self.get_max_hp()//4 and self.poison >= self.HP:
+			if self.poison >= self.HP:
 				if self.resting or self.activity:
-					self.g.print_msg("The amount of poison in your body is likely lethal!", "red")
+					self.g.print_msg("The amount of poison in your body is lethal!", "red")
 					self.interrupt()
 		if self.HP <= 0:
 			self.HP = 0
@@ -1355,8 +1358,11 @@ class Player(Entity):
 		if self.grappled_by:
 			stat = max(self.DEX, self.STR) #Let's use the higher of the two
 			for m in self.grappled_by[:]:
-				if dice(1, 20) + calc_mod(stat) >= m.grapple_dc:
-					if self.STR > self.DEX or (self.STR == self.DEX and random.randint(1, 2) == 1):
+				mod = calc_mod(stat)
+				if m.has_effect("Confused"):
+					mod += 4 #Give a bonus escaping a confused monster's grab
+				if dice(1, 20) + mod >= m.grapple_dc:
+					if self.STR > self.DEX or (self.STR == self.DEX and one_in(2)):
 						break_method = "force yourself"
 					else:
 						break_method = "wriggle"
@@ -1461,16 +1467,16 @@ class Player(Entity):
 			self.take_damage(dmg, True)
 			self.poison -= dmg
 			if dmg > 3:
-				if random.randint(1, 2) == 1:
+				if one_in(2):
 					self.g.print_msg("You feel very sick.", "red")
-			elif random.randint(1, 3) == 1:
+			elif one_in(3):
 				self.g.print_msg("You feel sick.", "red")
 		elif self.HP < self.get_max_hp():
 			self.ticks += 1
 			if self.ticks % 6 == 0:
 				self.HP += 1
 		if self.ticks % 6 == 0:
-			if self.hp_drain > 0 and random.randint(1, 3) == 1:
+			if self.hp_drain > 0 and one_in(3):
 				self.hp_drain -= 1
 		for e in list(self.effects.keys()):
 			self.adjust_duration(e, -1)
@@ -1542,7 +1548,7 @@ class Player(Entity):
 				scale_mod = (val - 1) % 4
 				dam += dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, 4)
 			dam += div_rand(self.STR - 10, 2)
-			dam -= random.randint(0, 2*mon.armor)
+			dam -= random.randint(0, mult_rand_frac(mon.armor, 3, 2))
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
 			dam = max(dam, min_dam)
 			mon.HP -= dam
@@ -1678,7 +1684,7 @@ class Monster(Entity):
 		player = self.g.player
 		if not board.is_clear_path((self.x, self.y), (player.x, player.y)):
 			return False
-		return random.randint(1, 100) <= 40
+		return x_in_y(2, 5)
 		
 	def modify_damage(self, damage):
 		player = self.g.player
@@ -1752,11 +1758,11 @@ class Monster(Entity):
 		xdist = player.x - self.x
 		ydist = player.y - self.y
 		dist = abs(xdist) + abs(ydist)
+		if dist <= 1 and one_in(4):
+			return True
 		pen = max(dist - 2, 0)
 		guessplayer = dice(1, 20) + div_rand(self.WIS - 10, 2) - pen >= dice(1, 20) + div_rand(player.DEX - 10, 2)
-		
-		chance = 2 if dist <= 1 else 6
-		guessplayer = guessplayer and one_in(chance)
+		guessplayer = guessplayer and one_in(6)
 		return guessplayer
 		
 	def guess_rand_invis(self):
@@ -1789,14 +1795,22 @@ class Monster(Entity):
 			return
 		board = self.g.board
 		player = self.g.player
-		confused = self.has_effect("Confused") and random.randint(1, 4) < 4
+		confused = self.has_effect("Confused") and not one_in(4)
 		guessplayer = False
 		if self.is_aware and player.has_effect("Invisible"):
 			guessplayer = self.can_guess_invis() #Even if the player is invisible, the monster may still be able to guess their position
 		if confused:
 			dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
 			if not self.move(*random.choice(dirs)): #Only try twice
-				if not self.move(*random.choice(dirs)):
+				if not self.move(*(d := random.choice(dirs))):
+					x, y = self.x + d[0], self.y + d[1]
+					obstacle = ""
+					if board.blocks_sight(x, y):
+						obstacle = "wall"
+					elif (m := self.g.get_monster(x, y)):
+						obstacle = m.name
+					if obstacle:
+						self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} bumps into the {obstacle}.")
 					self.energy -= div_rand(self.get_speed(), 2) #We bumped into something while confused
 			self.energy = min(self.energy, 0)
 		elif self.has_effect("Frightened"):
@@ -1856,7 +1870,7 @@ class Monster(Entity):
 				dy = 1 if ydist > 0 else (-1 if ydist < 0 else 0)
 				axdist = abs(xdist)
 				aydist = abs(ydist)
-				if axdist > aydist or (axdist == aydist and random.randint(1, 2) == 1):
+				if axdist > aydist or (axdist == aydist and one_in(2)):
 					maintains = board.line_of_sight((self.x + dx, self.y), (player.x, player.y)) #Choose a direction that doesn't break line of sight
 					if not (maintains and self.move(dx, 0)):
 						self.move(0, dy)
@@ -1884,7 +1898,7 @@ class Monster(Entity):
 				else:
 					self.stop_tracking()
 			elif not one_in(5):
-				choose_new = self.dir is None or (random.randint(1, 3) == 1 or not self.move(*self.dir))
+				choose_new = self.dir is None or (one_in(3) or not self.move(*self.dir))
 				if choose_new:
 					if self.dir is None:
 						dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
@@ -1969,7 +1983,7 @@ class GiantCrab(Monster):
 	AC = 12
 	WIS = 9
 	to_hit = 3
-	armor = 1
+	armor = 2
 	passive_perc = 9
 	attacks = [
 		CrabClaw()
@@ -1998,8 +2012,12 @@ class PoisonBite(Attack):
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g
-		g.print_msg("You are poisoned!")
 		player.do_poison(dice(4, 6) + dice(1, 3))
+		if player.poison >= player.HP:
+			g.print_msg("You're lethally poisoned!", "red")
+		else:
+			g.print_msg("You are poisoned!", "yellow")
+		
 
 class GiantPoisonousSnake(Monster):
 	diff = 3
