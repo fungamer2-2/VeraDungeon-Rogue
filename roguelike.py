@@ -1535,7 +1535,6 @@ class Player(Entity):
 		mon.on_player_attacked()
 		if not sneak_attack: #If we did a sneak attack, let's continue to be stealthy
 			self.did_attack = True
-		self.adjust_duration("Invisible", -random.randint(0, 6))
 		if not hits:
 			self.g.print_msg(f"Your attack misses the {mon.name}.")
 		else:
@@ -1587,6 +1586,7 @@ class Player(Entity):
 						tile.symbol = ">"
 						tile.stair = True
 						break
+			self.adjust_duration("Invisible", -random.randint(0, 6))
 			
 class Attack:
 	
@@ -1753,7 +1753,7 @@ class Monster(Entity):
 		self.last_seen = (player.x, player.y)
 		
 	def can_guess_invis(self):
-		#Can we correctly guess the player's position when invisible?
+		#Can we correctly guess the player's exact position when invisible?
 		player = self.g.player
 		xdist = player.x - self.x
 		ydist = player.y - self.y
@@ -1807,7 +1807,7 @@ class Monster(Entity):
 					obstacle = ""
 					if board.blocks_sight(x, y):
 						obstacle = "wall"
-					elif (m := self.g.get_monster(x, y)):
+					elif (m := self.g.get_monster(x, y)	):
 						obstacle = m.name
 					if obstacle:
 						self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} bumps into the {obstacle}.")
