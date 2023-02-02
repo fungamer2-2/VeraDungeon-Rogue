@@ -81,6 +81,9 @@ def calc_mod(stat, avg=False):
 	else:
 		return div_rand(m, 2)
 	
+def one_in(x):
+	return x <= 1 or random.randint(1, x) == 1
+	
 def display_prob(perc):
 	if perc <= 0:
 		return "0%"
@@ -514,7 +517,7 @@ class Game:
 						tile.items.append(typ())
 						break
 							
-		if random.randint(1, 4) < 4:
+		if not one_in(4):
 			types = [
 				(HealthPotion, 20),
 				(ResistPotion, 10),
@@ -697,7 +700,7 @@ class Game:
 		
 	def do_turn(self):
 		while self.player.energy <= 0:
-			if random.randint(1, 6) == 1: #In case anything goes wrong, refresh the monster collision cache every so often
+			if one_in(6): #In case anything goes wrong, refresh the monster collision cache every so often
 				self.refresh_cache()
 			self.player.do_turn()
 			order = self.monsters[:]
@@ -1239,7 +1242,7 @@ class Player(Entity):
 			self.exp -= self.max_exp()
 			self.level += 1
 			if self.level % 2 == 1:		
-				if random.randint(1, 2) == 1:	
+				if one_in(2):
 					self.STR += 1
 				else:
 					self.DEX += 1
@@ -1455,7 +1458,7 @@ class Player(Entity):
 			dmg = 1 + random.randint(0, self.poison // 8)
 			if dmg > self.poison:
 				dmg = self.poison
-			self.take_damage(dmg, poison=True)
+			self.take_damage(dmg, True)
 			self.poison -= dmg
 			if dmg > 3:
 				if random.randint(1, 2) == 1:
@@ -1500,7 +1503,7 @@ class Player(Entity):
 		if not mon.is_aware or self.has_effect("Invisible"):
 			adv = True
 		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) >= mon.passive_perc
-		sneak_attack = sneak_attack and random.randint(1, 2) == 1
+		sneak_attack = sneak_attack and one_in(2)
 		if mon.has_effect("Asleep"):
 			sneak_attack = True
 		if adv:
@@ -1514,7 +1517,7 @@ class Player(Entity):
 		else:
 			hits = roll + calc_mod(self.STR) >= mon.AC
 		if sneak_attack:
-			if random.randint(1, 3) == 1:
+			if one_in(3):
 				self.g.print_msg(f"The {mon.name} is caught off-guard by your sneak attack!")
 			else:
 				self.g.print_msg(f"You catch the {mon.name} completely unaware!")
@@ -1604,7 +1607,7 @@ class Monster(Entity):
 	def __init__(self, g, name="monster", symbol=None, HP=10, ranged=None, ranged_dam=(2, 3)):
 		super().__init__(g)
 		if ranged is None:
-			ranged = random.randint(1, 5) == 1
+			ranged = one_in(5)
 		self.HP = HP
 		self.MAX_HP = HP
 		self.name = name
@@ -1686,7 +1689,7 @@ class Monster(Entity):
 				return 0
 		if player.has_effect("Resistance"):
 			damage = div_rand(damage, 2)
-			if random.randint(1, 2) == 1: #Don't tell them every time
+			if one_in(2): #Don't tell them every time
 				self.g.print_msg("Your resistance blocks some of the damage.")
 		return max(damage, 0)
 		
@@ -1753,7 +1756,7 @@ class Monster(Entity):
 		guessplayer = dice(1, 20) + div_rand(self.WIS - 10, 2) - pen >= dice(1, 20) + div_rand(player.DEX - 10, 2)
 		
 		chance = 2 if dist <= 1 else 6
-		guessplayer = guessplayer and random.randint(1, chance) == 1	
+		guessplayer = guessplayer and one_in(chance)
 		return guessplayer
 		
 	def guess_rand_invis(self):
@@ -1872,14 +1875,15 @@ class Monster(Entity):
 						check = True
 					self.path_towards(*self.last_seen)
 					if (self.x, self.y) == self.last_seen and check:
+						sees_you = self.sees_player()
 						#If we reach the target position and still don't see the player, roll a stealth check to continue tracking the player
-						if dice(1, 20) + calc_mod(player.DEX) < 10 + calc_mod(self.WIS):
+						if sees_you or dice(1, 20) + calc_mod(player.DEX) < 14 + calc_mod(self.WIS):
 							self.last_seen = (player.x, player.y)
 						else:
 							self.stop_tracking()
 				else:
 					self.stop_tracking()
-			elif random.randint(1, 5) < 5:
+			elif not one_in(5):
 				choose_new = self.dir is None or (random.randint(1, 3) == 1 or not self.move(*self.dir))
 				if choose_new:
 					if self.dir is None:
@@ -1956,7 +1960,7 @@ class CrabClaw(Attack):
 		super().__init__((2, 6), 3, "The {0} claws you")
 		
 	def on_hit(self, player, mon, dmg):
-		if random.randint(1, 3) < 3 and player.add_grapple(mon):
+		if not one_in(3) and player.add_grapple(mon):
 			player.g.print_msg(f"The {mon.name} grapples you with its claw!", "red")
 
 class GiantCrab(Monster):
