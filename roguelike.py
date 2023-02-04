@@ -1198,6 +1198,8 @@ class Player(Entity):
 		self.activity = None
 		self.did_attack = False
 		self.last_attacked = False
+		self.moved = False
+		self.last_moved = False
 		self.grappled_by = []
 		
 	def add_grapple(self, mon):
@@ -1350,11 +1352,13 @@ class Player(Entity):
 		if (m := self.g.get_monster(self.x, self.y+1)):
 			adj.append(m)
 		if self.g.monster_at(self.x + dx, self.y + dy):
+			self.moved = True
 			self.attack(dx, dy)
 			return True
 		board = self.g.board
 		if not board.is_passable(self.x + dx, self.y + dy):
 			return False
+		self.moved = True
 		if self.grappled_by:
 			stat = max(self.DEX, self.STR) #Let's use the higher of the two
 			for m in self.grappled_by[:]:
@@ -1456,6 +1460,8 @@ class Player(Entity):
 		
 	def do_turn(self):
 		self.last_attacked = self.did_attack
+		self.last_moved = self.moved
+		self.moved = False
 		for m in self.grappled_by[:]:
 			dist = abs(m.x - self.x) + abs(m.y - self.y)
 			if dist > 1:
@@ -1758,12 +1764,14 @@ class Monster(Entity):
 		xdist = player.x - self.x
 		ydist = player.y - self.y
 		dist = abs(xdist) + abs(ydist)
-		if dist <= 1 and one_in(4):
+		if dist <= 1 and one_in(4): #If we are right next to the player, we are more likely to notice
 			return True
-		pen = max(dist - 2, 0)
-		guessplayer = dice(1, 20) + div_rand(self.WIS - 10, 2) - pen >= dice(1, 20) + div_rand(player.DEX - 10, 2)
-		guessplayer = guessplayer and one_in(6)
-		return guessplayer
+		if not one_in(6): #Only make the check every 6 turns on average
+			return False
+		pen = max(dist - 2, 0) #Distance penalty; it's harder to guess the position of an invisible player who's far away
+		if not player.last_moved:
+			pen += 5 #If the player doesn't move, it's harder to know where they are
+		return dice(1, 20) + div_rand(self.WIS - 10, 2) - pen >= dice(1, 20) + div_rand(player.DEX - 10, 2)
 		
 	def guess_rand_invis(self):
 		board = self.g.board
@@ -1807,7 +1815,7 @@ class Monster(Entity):
 					obstacle = ""
 					if board.blocks_sight(x, y):
 						obstacle = "wall"
-					elif (m := self.g.get_monster(x, y)	):
+					elif (m := self.g.get_monster(x, y)):
 						obstacle = m.name
 					if obstacle:
 						self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} bumps into the {obstacle}.")
