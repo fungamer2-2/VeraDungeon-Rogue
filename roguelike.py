@@ -712,10 +712,10 @@ class Game:
 			for m in order:
 				if m.HP > 0:
 					m.do_turn()
-					if self.player.dead:
-						return
 				else:
 					self.monsters.remove(m)
+				if self.player.dead:
+					return
 			self.player.energy += self.player.get_speed()
 				
 
@@ -989,7 +989,7 @@ class InvisibilityPotion(Item):
 		g.print_msg("You drink an invisibility potion.")
 		if player.has_effect("Invisible"):
 			g.print_msg("Your invisibility begins to last even longer.")
-		player.gain_effect("Invisible", random.randint(45, 60))
+		player.gain_effect("Invisible", random.randint(45, 70))
 		return True
 		
 class ConfusionScroll(Scroll):
@@ -1291,6 +1291,11 @@ class Player(Entity):
 	
 	def do_poison(self, amount):
 		self.poison += amount
+		if self.poison >= self.HP:
+			g.print_msg("You're lethally poisoned!", "red")
+		else:
+			g.print_msg("You are poisoned!", "yellow")
+		
 	
 	def take_damage(self, dam, poison=False):
 		if dam <= 0:
@@ -1324,11 +1329,9 @@ class Player(Entity):
 			y = random.randint(1, board.rows - 2)
 			if board.is_passable(x, y) and (x, y) != oldloc:
 				seeslastpos = board.line_of_sight((x, y), oldloc)
-				if seeslastpos and random.randint(1, 3) == 1:
-					continue
 				if not seeslastpos: #We teleported out of sight
 					for m in self.monsters_in_fov():
-						m.stop_tracking()
+						m.track_timer = min(m.track_timer, dice(1, 7)) #Allow them to still close in on where they last saw you, and not immediately realize you're gone
 				self.g.print_msg("You teleport!")
 				self.x = x
 				self.y = y
@@ -1467,12 +1470,13 @@ class Player(Entity):
 			if dist > 1:
 				self.remove_grapple(m)
 		if self.poison > 0:
-			dmg = 1 + random.randint(0, self.poison // 8)
+			maxdmg = 1 + self.poison // 8
+			dmg = random.randint(1, maxdmg)
 			if dmg > self.poison:
 				dmg = self.poison
 			self.take_damage(dmg, True)
 			self.poison -= dmg
-			if dmg > 3:
+			if maxdmg > 3:
 				if one_in(2):
 					self.g.print_msg("You feel very sick.", "red")
 			elif one_in(3):
@@ -1482,7 +1486,7 @@ class Player(Entity):
 			if self.ticks % 6 == 0:
 				self.HP += 1
 		if self.ticks % 6 == 0:
-			if self.hp_drain > 0 and one_in(3):
+			if self.hp_drain > 0 and one_in(4):
 				self.hp_drain -= 1
 		for e in list(self.effects.keys()):
 			self.adjust_duration(e, -1)
@@ -1615,6 +1619,7 @@ class Monster(Entity):
 	grapple_dc = 10
 	armor = 0
 	attacks = [Attack((1, 3), 0)]
+	beast = True
 	
 	def __init__(self, g, name="monster", symbol=None, HP=10, ranged=None, ranged_dam=(2, 3)):
 		super().__init__(g)
@@ -1653,6 +1658,37 @@ class Monster(Entity):
 			return True
 		return False
 		
+	def choose_polymorph_type(self):
+		#Note: A bit of a hack using object polymorphing
+		types = Monster.__subclasses__()
+		candidates = list(filter(lambda typ: typ.diff <= self.diff and typ.beast))
+		assert len(candidates) > 0
+		tries = 60
+		while tries > 0:
+			maxdiff = max(1, self.diff - one_in(2))
+			newdiff = 1
+			for _ in range(random.randint(2, 3)):
+				newdiff = random.randint(newdiff, maxdiff)
+			choices = list(filter(lambda typ: newdiff == typ.diff))
+			if not choices:
+				tries -= 1
+				continue
+			while True:
+				chosen = random.choice(choices)
+				if one_in(5) or chosen().MAX_HP < self.MAX_HP:
+					return chosen
+				
+		return random.choice(candidates)
+		
+	def polymorph(self):
+		typ = self.choose_polymorph_type()
+		self.__class__ = typ
+		inst = typ()
+		self.ranged = False
+		self._symbol = inst.symbol
+		self.HP = inst.HP
+		self.MAX_HP = inst.MAX_HP
+					
 	def has_effect(self, name):
 		return name in self.effects
 		
@@ -1726,7 +1762,7 @@ class Monster(Entity):
 		elif roll == 20:
 			hits = True
 		else:
-			hits = total >= AC
+			hits = player.dead or total >= AC
 		if not hits:
 			if roll == 1 or total < AC - ac_mod:
 				self.g.print_msg(f"The {self.name}'s attack misses you.")
@@ -1859,7 +1895,7 @@ class Monster(Entity):
 				elif roll == 20:
 					hits = True
 				else:
-					hits = total >= AC
+					hits = player.dead or total >= AC
 				if not hits:
 					if roll > 1 and total >= AC - dodge_mod:
 						self.g.print_msg("You dodge the projectile.")
@@ -1969,6 +2005,7 @@ class Kobold(Monster):
 	WIS = 7
 	to_hit = 4
 	passive_perc = 8
+	beast = False
 	attacks = [
 		Attack((2, 4), 4, "The {0} hits you with its dagger")
 	]
@@ -1976,15 +2013,20 @@ class Kobold(Monster):
 	def __init__(self, g):
 		super().__init__(g, "kobold", "K", 10, None, (2, 4))
 
-class CrabClaw(Attack):
+class ClawGrapple(Attack):
 	
-	def __init__(self):
-		super().__init__((2, 6), 3, "The {0} claws you")
+	def __init__(self, dmg, to_hit):
+		super().__init__(dmg, to_hit, "The {0} claws you")
 		
 	def on_hit(self, player, mon, dmg):
 		if not one_in(3) and player.add_grapple(mon):
 			player.g.print_msg(f"The {mon.name} grapples you with its claw!", "red")
 
+class CrabClaw(ClawGrapple):
+	
+	def __init__(self):
+		super().__init__((2, 6), 3)
+			
 class GiantCrab(Monster):
 	diff = 3
 	min_level = 4
@@ -2013,6 +2055,7 @@ class GiantRat(Monster):
 	def __init__(self, g):
 		super().__init__(g, "giant rat", "R", 14, False)
 
+
 class PoisonBite(Attack):
 	
 	def __init__(self):
@@ -2020,12 +2063,7 @@ class PoisonBite(Attack):
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g
-		player.do_poison(dice(4, 6) + dice(1, 3))
-		if player.poison >= player.HP:
-			g.print_msg("You're lethally poisoned!", "red")
-		else:
-			g.print_msg("You are poisoned!", "yellow")
-		
+		player.do_poison(dice(4, 6) + dice(1, 3))			
 
 class GiantPoisonousSnake(Monster):
 	diff = 3
@@ -2049,6 +2087,7 @@ class Skeleton(Monster):
 	to_hit = 4
 	armor = 1
 	passive_perc = 9
+	beast = False
 	attacks = [
 		Attack((2, 6), 4, "The {0} hits you with its shortsword")
 	]
@@ -2106,6 +2145,7 @@ class Orc(Monster):
 	to_hit = 5
 	armor = 2
 	passive_perc = 10
+	beast = False
 	attacks = [
 		Attack((2, 12), 3, "The {0} hits you with its greataxe")
 	]
@@ -2170,6 +2210,8 @@ class Ogre(Monster):
 	to_hit = 6
 	armor = 2
 	passive_perc = 8
+	beast = False
+	
 	attacks = [
 		Attack((2, 6), 6, "The {0} hits you with its club"),
 	]
@@ -2249,6 +2291,7 @@ class Sasquatch(Monster):
 	to_hit = 6
 	armor = 2
 	passive_perc = 17
+	beast = False
 	attacks = [
 		Attack((2, 8), 6, "The {0} punches you with its fist"),
 		Attack((2, 8), 6, "The {0} punches you with its fist")
@@ -2256,7 +2299,40 @@ class Sasquatch(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "sasquatch", "Q", 118, False)
-			
+
+class ScorpionClaw(ClawGrapple):
+	
+	def __init__(self):
+		super().__init__((2, 8), 4)
+		
+class ScorpionSting(Attack):
+	
+	def __init__(self):
+		super().__init__((2, 10), 4, "The {0} stings you")
+	
+	def on_hit(self, player, mon, dmg):
+		g = player.g
+		player.do_poison(dice(4, 10))
+		
+class GiantScorpion(Monster):
+	diff = 7
+	speed = 40
+	min_level = 21
+	AC = 15
+	WIS = 9
+	to_hit = 4
+	passive_perc = 9
+	grapple_dc = 12
+	
+	attacks = [
+		ScorpionClaw(),
+		ScorpionClaw(),
+		ScorpionSting()
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "giant scorpion", "D", 98, False)
+		
 g = Game()
 try:
 	g.print_msg("Press \"?\" if you want to view the controls.")
