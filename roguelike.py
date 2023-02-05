@@ -1238,7 +1238,7 @@ class Player(Entity):
 		return int(speed)
 		
 	def max_exp(self):
-		return 50 + (self.level - 1) * 15
+		return 50 + (self.level - 1) * 20
 		
 	def gain_exp(self, amount):
 		self.exp += amount
@@ -1246,7 +1246,7 @@ class Player(Entity):
 		while self.exp >= self.max_exp():
 			self.exp -= self.max_exp()
 			self.level += 1
-			if self.level % 2 == 1:		
+			if self.level % 4 == 0:		
 				if one_in(2):
 					self.STR += 1
 				else:
@@ -1399,7 +1399,7 @@ class Player(Entity):
 			dist = abs(self.x - m.x) + abs(self.y - m.y)
 			if m.has_effect("Confused") or m.has_effect("Stunned"): #Confused monsters can't make opportunity attacks
 				continue
-			mon_speed = m.get_speed()
+			mon_speed = m.get_speed() 
 			if m.is_aware and m.sees_player() and dist == 2 and (mon_speed > speed or (mon_speed == speed and random.randint(1, 2) == 1)) and random.randint(1, 3) == 1:
 				self.g.print_msg(f"As you move away from {m.name}, it makes an opportunity attack!", "yellow")
 				m.melee_attack_player(force=True)
@@ -1552,10 +1552,11 @@ class Player(Entity):
 			if crit:
 				dam += dice(1, 6)
 			if sneak_attack:
+				scale = 6
 				val = random.randint(1, self.level)
-				scale_int = 1 + (val - 1) // 4
-				scale_mod = (val - 1) % 4
-				dam += dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, 4)
+				scale_int = 1 + (val - 1) // scale
+				scale_mod = (val - 1) % scale
+				dam += dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, scale)
 			dam += div_rand(self.STR - 10, 2)
 			dam -= random.randint(0, mult_rand_frac(mon.armor, 3, 2))
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
@@ -1915,11 +1916,11 @@ class Monster(Entity):
 				axdist = abs(xdist)
 				aydist = abs(ydist)
 				if axdist > aydist or (axdist == aydist and one_in(2)):
-					maintains = board.line_of_sight((self.x + dx, self.y), (player.x, player.y)) #Choose a direction that doesn't break line of sight
+					maintains = (self.x + dx, self.y) in player.fov #Choose a direction that doesn't break line of sight
 					if not (maintains and self.move(dx, 0)):
 						self.move(0, dy)
 				else:
-					maintains =  board.line_of_sight((self.x, self.y + dy), (player.x, player.y))
+					maintains =  (self.x, self.y + dy) in player.fov
 					if not (maintains and self.move(0, dy)):
 						self.move(dx, 0)
 		else:
@@ -2452,9 +2453,18 @@ try:
 				else:
 					g.print_msg("You don't have anything to use.")
 					refresh = True
-			elif char == "r" and g.player.HP < g.player.MAX_HP: #Rest and wait for HP to recover
-				g.print_msg("You begin resting.")
-				g.player.resting = True
+			elif char == "r" and g.player.HP < g.player.MAX_HP: #Rest and wait for HP to recover 
+				aware_count = 0
+				for m in player.monsters_in_fov():
+					if m.is_aware:
+						aware_count += 1
+				if aware_count == 0:
+					g.print_msg("You begin resting.")
+					g.player.resting = True
+				else:
+					num_msg = "there are monsters" if aware_count > 1 else "there's a monster"
+					g.print_msg(f"You can't rest when {num_msg} nearby!", "yellow")
+				refresh = True
 			elif char == "p": #Pick up item
 				tile = g.board.get(g.player.x, g.player.y)
 				if tile.items:
