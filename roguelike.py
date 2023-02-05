@@ -524,8 +524,8 @@ class Game:
 			types = [
 				(HealthPotion, 25),
 				(ResistPotion, 10),
-				(SpeedPotion, 8),
-				(InvisibilityPotion, 5)
+				(SpeedPotion, 10),
+				(InvisibilityPotion, 6)
 			]
 			for _ in range(4):
 				if x_in_y(45, 100):
@@ -886,6 +886,12 @@ class Effect:
 	def on_expire(self, player):
 		pass
 		
+class Lethargy(Effect):
+	name = "Lethargy"
+	
+	def __init__(self, duration):
+		super().__init__(duration, "You begin to feel lethargic.", "Your energy returns.")
+				
 class Haste(Effect):
 	name = "Haste"
 	
@@ -894,9 +900,8 @@ class Haste(Effect):
 	
 	def on_expire(self, player):
 		g = player.g
-		g.print_msg("A wave of lethargy sweeps over you.")
-		player.energy -= g.player.get_speed()
-
+		player.gain_effect("Lethargy", random.randint(5, 8))
+		
 class Resistance(Effect):
 	name = "Resistance"
 	
@@ -951,7 +956,7 @@ class HealthPotion(Item):
 			return True
 			
 class SpeedPotion(Item):
-	description = "Consuming this potion temporarily speeds the movement of the one who drinks it. However, once the effect wears off, they won't be able to move for a turn, as a wave of lethargy passes over them."
+	description = "Consuming this potion temporarily speeds the movement of the one who drinks it. However, once the effect wears off, they will feel lethargic for a short period."
 	
 	def __init__(self):
 		super().__init__("speed potion", "S")
@@ -959,9 +964,10 @@ class SpeedPotion(Item):
 	def use(self, player):
 		g = player.g
 		g.print_msg("You drink a speed potion.")
+		player.lose_effect("Lethargy", silent=True)
 		if player.has_effect("Haste"):
 			g.print_msg("Your speed begins to last even longer.")
-		player.gain_effect("Haste", random.randint(30, 45))
+		player.gain_effect("Haste", random.randint(40, 60))
 		return True
 		
 class ResistPotion(Item):	
@@ -1235,6 +1241,8 @@ class Player(Entity):
 		speed = self.speed
 		if self.has_effect("Haste"):
 			speed *= 2
+		elif self.has_effect("Lethargy"):
+			speed = speed * 2 // 3
 		return int(speed)
 		
 	def max_exp(self):
@@ -1415,6 +1423,14 @@ class Player(Entity):
 			else:
 				self.effects[name] = (eff := typ(duration))
 				self.g.print_msg(eff.add_msg)
+				
+	def lose_effect(self, name, silent=False):
+		if name in self.effects:
+			eff = self.effects[effect]
+			if silent:
+				self.g.print_msg(eff.rem_msg)
+			del self.effects[effect]
+			eff.on_expire(self)
 	
 	def has_effect(self, name):
 		return name in self.effects
@@ -2455,7 +2471,7 @@ try:
 					refresh = True
 			elif char == "r" and g.player.HP < g.player.MAX_HP: #Rest and wait for HP to recover 
 				aware_count = 0
-				for m in player.monsters_in_fov():
+				for m in g.player.monsters_in_fov():
 					if m.is_aware:
 						aware_count += 1
 				if aware_count == 0:
