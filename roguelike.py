@@ -395,6 +395,7 @@ class Game:
 		self.msg_list = deque(maxlen=50)
 		self.msg_cursor = 0
 		self.projectile = None
+		self.select = None
 		self.level = 1
 		types = Effect.__subclasses__()
 		self.effect_types = {t.name:t for t in types}
@@ -533,6 +534,13 @@ class Game:
 					place_item(typ)	
 				elif x_in_y(60, 100):
 					break
+					
+		if self.level > dice(1, 6) and one_in(3):
+			typ = rand_weighted(
+				(MagicMissile, 2),
+				(PolymorphWand, 1)
+			)
+			place_item(typ)
 		
 		if x_in_y(3, 8):
 			typ = rand_weighted(
@@ -631,6 +639,8 @@ class Game:
 					color = curses.color_pair(2)
 					if isinstance(item, (Scroll, Armor)):
 						color = curses.color_pair(4) | curses.A_BOLD
+					elif isinstance(item, Wand):
+						color = curses.color_pair(5) | curses.A_BOLD
 				elif tile.symbol == " ":
 					if (col, row) in fov:
 						s = "."
@@ -654,6 +664,9 @@ class Game:
 					if m.has_effect("Asleep"):
 						color = curses.color_pair(4)
 					color |= curses.A_REVERSE
+				if m is self.select:
+					color = curses.color_pair(2)
+					color |= curses.A_REVERSE 
 				try:
 					screen.addstr(y+offset, x, m.symbol, color)
 				except curses.error:
@@ -1180,7 +1193,107 @@ class PlateArmor(Armor):
 	def __init__(self):
 		super().__init__("plate armor", "T", 8)
 
+class Wand(Item):
+	description = "This is a wand."
+	
+	def __init__(self, name, charges):
+		super().__init__(name, "Î")
+		self.charges = charges
+	
+	def wand_effect(self, player, mon):
+		self.g.print_msg("Nothing special seems to happen.")
+		
+	def use(self, player):
+		g = player.g
+		monsters = list(player.monsters_in_fov())
+		g.print_msg(f"This wand has {self.charges} charges remaining.")
+		if not monsters:
+			g.print_msg("You don't see any monsters to target.")
+		else:
+			g.print_msg("Target which monster?")
+			g.print_msg("Use the a and d keys to select")
+			monsters.sort(key=lambda m: m.y)
+			monsters.sort(key=lambda m: m.x)
+			index = random.randrange(len(monsters))
+			last = -1
+			while True:
+				g.select = monsters[index]
+				if last != index:
+					g.draw_board()
+					last = index
+				curses.flushinp()
+				num = g.screen.getch()
+				char = chr(num)
+				if char == "a":
+					index -= 1
+					if index < 0:
+						index += len(monsters)
+				elif char == "d":
+					index += 1
+					if index >= len(monsters):
+						index -= len(monsters)
+				if num == 10:
+					break
+			g.select = None
+			target = monsters[index]
+			if g.board.line_of_sight((player.x, player.y), (target.x, target.y)):
+				line = list(g.board.line_between((player.x, player.y), (target.x, target.y)))
+			else:
+				line = list(g.board.line_between((target.x, target.y), (player.x, player.y)))
+				line.reverse()
+			for x, y in line:
+				g.set_projectile_pos(x, y)
+				g.draw_board()
+				time.sleep(0.03)
+				if (t := g.get_monster(x, y)) is not None:
+					if t is not target and x_in_y(3, 5): #If a creature is in the way, we may hit it instead of our intended target.
+						g.print_msg(f"The {t.name} is in the way.")
+						target = t
+						break
+			g.clear_projectile()
+			self.wand_effect(player, target)
+			self.charges -= 1
+			player.did_attack = True
+			for m in player.monsters_in_fov():
+				if one_in(2): #Zapping a wand is very likely to alert nearby monsters to your position
+					m.is_aware = True
+					m.last_seen = (player.x, player.y)
+		return self.charges <= 0
+		
+class MagicMissile(Wand):
+	description = "This wand can be used to fire magic missiles at creatures, which will always hit."
+	
+	def __init__(self):
+		super().__init__("wand of magic missiles", random.randint(random.randint(2, 7), 7))
+	
+	def wand_effect(self, player, target):
+		dam = dice(3, 4) + random.randint(0, 3)
+		g = player.g
+		dam = target.apply_armor(dam)
+		msg = f"The magic missiles hit the {target.name}"
+		if dam <= 0:
+			msg += " but do no damage."
+		else:
+			target.HP -= dam
+			msg += "."
+			if target.HP > 0:
+				msg += f" Its HP: {target.HP}/{target.MAX_HP}"
+		g.print_msg(msg)
+		if target.HP <= 0:
+			player.defeated_monster(target)
 
+class PolymorphWand(Wand):
+	description = "This wand can be used to polymorph nearby enemies into something weaker."
+	
+	def __init__(self):
+		super().__init__("polymorph wand", random.randint(random.randint(2, 7), 7))
+	
+	def wand_effect(self, player, target):
+		if dice(1, 20) + calc_mod(target.WIS) >= 15:
+			self.g.print_msg(f"The {target.name} resists.")
+		else:
+			target.polymorph()
+		
 class Player(Entity):
 	
 	def __init__(self, g):
@@ -1207,6 +1320,7 @@ class Player(Entity):
 		self.moved = False
 		self.last_moved = False
 		self.grappled_by = []
+		
 		
 	def add_grapple(self, mon):
 		if mon in self.grappled_by:
@@ -1574,7 +1688,7 @@ class Player(Entity):
 				scale_mod = (val - 1) % scale
 				dam += dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, scale)
 			dam += div_rand(self.STR - 10, 2)
-			dam -= random.randint(0, mult_rand_frac(mon.armor, 3, 2))
+			dam = mon.apply_armor(dam)
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
 			dam = max(dam, min_dam)
 			mon.HP -= dam
@@ -1588,33 +1702,36 @@ class Player(Entity):
 			else:
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
 			if mon.HP <= 0:
-				self.g.print_msg(f"The {mon.name} dies!", "green")
-				self.g.remove_monster(mon)
-				self.remove_grapple(mon)
-				lev = mon.diff - 1
-				gain = math.ceil(min(6 * 2**lev, 30 * 1.5**lev))
-				self.gain_exp(gain)
-				if not self.g.monsters:
-					if self.g.level == 1:
-						self.g.print_msg("Level complete! Move onto the stairs marked with a \">\", then press SPACE to go down to the next level.")
-					board = self.g.board
-					los_tries = 100
-					while True:
-						sx = random.randint(1, board.cols - 2)
-						sy = random.randint(1, board.rows - 2)
-						if not board.is_passable(sx, sy):
-							continue
-						if los_tries > 0 and board.line_of_sight((self.x, self.y), (sx, sy)):
-							los_tries -= 1
-							continue
-						if abs(self.x - sx) + abs(self.y - sy) <= 4:
-							continue
-						tile = board.get(sx, sy)
-						tile.symbol = ">"
-						tile.stair = True
-						break
+				self.defeated_monster(mon)
 			self.adjust_duration("Invisible", -random.randint(0, 6))
-			
+				
+	def defeated_monster(self, mon):
+		self.g.print_msg(f"The {mon.name} dies!", "green")
+		self.g.remove_monster(mon)
+		self.remove_grapple(mon)
+		lev = mon.diff - 1
+		gain = math.ceil(min(6 * 2**lev, 30 * 1.5**lev))
+		self.gain_exp(gain)
+		if not self.g.monsters:
+			if self.g.level == 1:
+				self.g.print_msg("Level complete! Move onto the stairs marked with a \">\", then press SPACE to go down to the next level.")
+			board = self.g.board
+			los_tries = 100
+			while True:
+				sx = random.randint(1, board.cols - 2)
+				sy = random.randint(1, board.rows - 2)
+				if not board.is_passable(sx, sy):
+					continue
+				if los_tries > 0 and board.line_of_sight((self.x, self.y), (sx, sy)):
+					los_tries -= 1
+					continue
+				if abs(self.x - sx) + abs(self.y - sy) <= 4:
+					continue
+				tile = board.get(sx, sy)
+				tile.symbol = ">"
+				tile.stair = True
+				break
+		
 class Attack:
 	
 	def __init__(self, dmg, to_hit, msg="The {0} attacks you"):
@@ -1678,7 +1795,7 @@ class Monster(Entity):
 	def choose_polymorph_type(self):
 		#Note: A bit of a hack using object polymorphing
 		types = Monster.__subclasses__()
-		candidates = list(filter(lambda typ: typ.diff <= self.diff and typ.beast))
+		candidates = list(filter(lambda typ: typ.diff <= self.diff and typ.beast and typ != self.__class__, types))
 		assert len(candidates) > 0
 		tries = 60
 		while tries > 0:
@@ -1686,25 +1803,29 @@ class Monster(Entity):
 			newdiff = 1
 			for _ in range(random.randint(2, 3)):
 				newdiff = random.randint(newdiff, maxdiff)
-			choices = list(filter(lambda typ: newdiff == typ.diff))
+			choices = list(filter(lambda typ: newdiff == typ.diff, candidates))
 			if not choices:
 				tries -= 1
 				continue
 			while True:
 				chosen = random.choice(choices)
-				if one_in(5) or chosen().MAX_HP < self.MAX_HP:
+				if one_in(5) or chosen(g).MAX_HP < self.MAX_HP:
 					return chosen
 				
 		return random.choice(candidates)
 		
 	def polymorph(self):
+		oldname = self.name
 		typ = self.choose_polymorph_type()
 		self.__class__ = typ
-		inst = typ()
+		inst = typ(self.g)
 		self.ranged = False
 		self._symbol = inst.symbol
 		self.HP = inst.HP
 		self.MAX_HP = inst.MAX_HP
+		self.name = inst.name
+		a_an = "an" if self.name[0] in "aeiou" else "a"
+		self.g.print_msg_if_sees((self.x, self.y), f"The {oldname} polymorphs into a {self.name}!")
 					
 	def has_effect(self, name):
 		return name in self.effects
@@ -1849,6 +1970,9 @@ class Monster(Entity):
 		self.track_timer = 0
 		self.is_aware = False
 		self.dir = None
+		
+	def apply_armor(self, dam):
+		return max(0, dam - random.randint(0, mult_rand_frac(self.armor, 3, 2)))
 		
 	def actions(self):
 		if self.has_effect("Asleep") or self.has_effect("Stunned"): #If we're asleep or stunned, return early
@@ -2450,21 +2574,35 @@ try:
 					d = {}
 					for item in inv:
 						name = item.name
+						if isinstance(item, Wand):
+							name += f" - {item.charges} charges"
 						if name not in d:
-							d[name] = 0
-						d[name] += 1
+							d[name] = [0, item]
+						d[name][0] += 1
 					strings = []
-					for name in sorted(d.keys()):
-						if d[name] == 1:
-							strings.append(name)
-						else:
-							strings.append(name + f" ({d[name]})")
+					choices = []
+					for i, name in enumerate(sorted(d.keys())):
+						n = name
+						num, item = d[name]
+						if num > 1:
+							n += f" ({num})"
+						strings.append(f"{i+1}. {n}")
+						choices.append(item)
+					g.print_msg("Enter a number")
 					g.print_msg("You have: " + ", ".join(strings))
-					name = g.input()
-					item = next((it for it in g.player.inventory if it.name == name), None)
-					if item and item.use(g.player):
-						g.player.inventory.remove(item)
-						g.player.energy -= g.player.get_speed()
+					num = g.input()
+					try:
+						num = int(num)
+					except ValueError:
+						g.print_msg("You didn't enter a number.")
+					else:
+						if num <= 0 or num > len(strings):
+							g.print_msg(f"Invalid number. Must be between 1 and {len(strings)}")
+						else:
+							item = choices[num - 1]
+							if item.use(g.player):
+								g.player.inventory.remove(item)
+								g.player.energy -= g.player.get_speed()
 					refresh = True
 				else:
 					g.print_msg("You don't have anything to use.")
