@@ -550,7 +550,7 @@ class Game:
 				(ConfusionScroll, 2)
 			)
 			place_item(typ)
-		if self.level > 1 and x_in_y(min(55 + self.level, 	80), 100):
+		if self.level > 1 and x_in_y(min(55 + self.level, 80), 100):
 			types = [LeatherArmor]
 			if self.level > 2:
 				types.append(HideArmor)
