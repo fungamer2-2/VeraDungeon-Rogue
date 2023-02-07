@@ -535,7 +535,7 @@ class Game:
 				elif x_in_y(60, 100):
 					break
 					
-		if self.level > dice(1, 6) and one_in(3):
+		if self.level > dice(1, 5) and one_in(3):
 			typ = rand_weighted(
 				(MagicMissile, 2),
 				(PolymorphWand, 1)
@@ -550,7 +550,7 @@ class Game:
 				(ConfusionScroll, 2)
 			)
 			place_item(typ)
-		if self.level > 1 and x_in_y(min(55 + self.level, 80), 100):
+		if self.level > 1 and x_in_y(min(55 + self.level, 	80), 100):
 			types = [LeatherArmor]
 			if self.level > 2:
 				types.append(HideArmor)
@@ -1255,9 +1255,8 @@ class Wand(Item):
 			self.charges -= 1
 			player.did_attack = True
 			for m in player.monsters_in_fov():
-				if one_in(2): #Zapping a wand is very likely to alert nearby monsters to your position
-					m.is_aware = True
-					m.last_seen = (player.x, player.y)
+				if one_in(2) or m is target: #Zapping a wand is very likely to alert nearby monsters to your position
+					m.on_alerted()
 		return self.charges <= 0
 		
 class MagicMissile(Wand):
@@ -1267,9 +1266,10 @@ class MagicMissile(Wand):
 		super().__init__("wand of magic missiles", random.randint(random.randint(2, 7), 7))
 	
 	def wand_effect(self, player, target):
-		dam = dice(3, 4) + random.randint(0, 3)
 		g = player.g
-		dam = target.apply_armor(dam)
+		dam = 0
+		for _ in range(3):
+			dam += target.apply_armor(random.randint(2, 5))
 		msg = f"The magic missiles hit the {target.name}"
 		if dam <= 0:
 			msg += " but do no damage."
@@ -1373,7 +1373,7 @@ class Player(Entity):
 					self.STR += 1
 				else:
 					self.DEX += 1
-			if self.level % 3 == 1:
+			if self.level % 3 == 0:
 				self.g.print_msg(f"You leveled up to level {(self.level)}!", "green")
 				old_level = self.level
 				while True:
@@ -1631,8 +1631,7 @@ class Player(Entity):
 					if m.has_effect("Asleep"):
 						perc -= 5
 					if (m.x, m.y) in self.fov and (roll == 1 or roll + div_rand(self.DEX - 10, 2) + mod < perc):
-						m.is_aware = True
-						m.last_seen = (self.x, self.y)
+						m.on_alerted()
 						m.remove_effect("Asleep")
 		self.did_attack = False
 				
@@ -1670,9 +1669,8 @@ class Player(Entity):
 			hits = True
 		if mon.has_effect("Asleep"):
 			hits = True
-			mon.is_aware = True
 			mon.remove_effect("Asleep")
-		mon.on_player_attacked()
+		mon.on_alerted()
 		if not sneak_attack: #If we did a sneak attack, let's continue to be stealthy
 			self.did_attack = True
 		if not hits:
@@ -1728,6 +1726,8 @@ class Player(Entity):
 				if abs(self.x - sx) + abs(self.y - sy) <= 4:
 					continue
 				tile = board.get(sx, sy)
+				if tile.items:
+					continue
 				tile.symbol = ">"
 				tile.stair = True
 				break
@@ -1841,7 +1841,10 @@ class Monster(Entity):
 			player = self.g.player
 			player.remove_grapple(self)
 		self.effects[name] += duration
-	
+		
+	def lose_effect(self, name):
+		if name in self.effects:
+			del self.effects[name]
 	def do_turn(self):
 		self.energy += self.get_speed()
 		while self.energy > 0:
@@ -1858,7 +1861,7 @@ class Monster(Entity):
 					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} is no longer confused.")
 				elif e == "Stunned":
 					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} is no longer stunned.")
-
+				
 	def should_use_ranged(self):
 		board = self.g.board
 		player = self.g.player
@@ -1887,7 +1890,7 @@ class Monster(Entity):
 		player = self.g.player
 		roll = dice(1, 20)
 		disadv = False
-		if player.has_effect("Invisible"):
+		if player.has_effect("Invisible") or self.has_effect("Frightened"):
 			disadv = True
 		if disadv:
 			roll = min(roll, dice(1, 20))
@@ -1926,12 +1929,7 @@ class Monster(Entity):
 		if player.has_effect("Invisible"):
 			return False
 		return (self.x, self.y) in player.fov
-		
-	def on_player_attacked(self):
-		player = self.g.player
-		self.is_aware = True
-		self.last_seen = (player.x, player.y)
-		
+	
 	def can_guess_invis(self):
 		#Can we correctly guess the player's exact position when invisible?
 		player = self.g.player
@@ -1964,6 +1962,15 @@ class Monster(Entity):
 			else:
 				self.last_seen = (xp, yp)
 				break
+				
+	def reset_track_timer(self):
+		self.track_timer = random.randint(25, 65)
+				
+	def on_alerted(self):
+		player = self.g.player
+		self.is_aware = True
+		self.last_seen = (player.x, player.y)
+		self.reset_track_timer()
 				
 	def stop_tracking(self):
 		self.last_seen = None
@@ -2003,17 +2010,25 @@ class Monster(Entity):
 				dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
 				random.shuffle(dirs)
 				dist = self.distance(player)
-				for dx, dy in dirs:
-					newx, newy = self.x + dx, self.y + dy	
-					newdist = abs(newx - player.x) + abs(newy - player.y)
-					if newdist >= dist:
-						self.move(dx, dy)
-						break
+				if dist <= 1 and one_in(4): #If we are already next to the player when frightened, there's a small chance we try to attack before running away
+					self.do_melee_attack()
+				else:
+					for dx, dy in dirs:
+						newx, newy = self.x + dx, self.y + dy	
+						newdist = abs(newx - player.x) + abs(newy - player.y)
+						if newdist >= dist:
+							self.move(dx, dy)
+							break
+					else:
+						if dist <= 1 and one_in(3): #If we are frightened and nowhere to run, sometimes try to attack
+							self.do_melee_attack()
+			elif one_in(2) and dice(1, 20) + calc_mod(self.WIS) >= 10:
+				self.lose_effect("Frightened")
 		elif self.is_aware and (self.sees_player() or guessplayer):
 			xdist = player.x - self.x
 			ydist = player.y - self.y
 			self.last_seen = (player.x, player.y)
-			self.track_timer = random.randint(25, 65) #How long we remember the player for when out of line of sight
+			self.reset_track_timer()
 			if self.distance(player) <= 1:
 				self.energy -= self.get_speed()
 				self.do_melee_attack()
@@ -2204,7 +2219,10 @@ class PoisonBite(Attack):
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g
-		player.do_poison(dice(4, 6) + dice(1, 3))			
+		poison = dice(4, 6) + dice(1, 3)
+		if dmg < poison:
+			poison = random.randint(dmg, poison)
+		player.do_poison(poison)			
 
 class GiantPoisonousSnake(Monster):
 	diff = 3
@@ -2453,7 +2471,10 @@ class ScorpionSting(Attack):
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g
-		player.do_poison(dice(4, 10))
+		poison = dice(4, 10)
+		if dmg < poison:
+			poison = random.randint(dmg, poison)
+		player.do_poison(poison)			
 		
 class GiantScorpion(Monster):
 	diff = 7
