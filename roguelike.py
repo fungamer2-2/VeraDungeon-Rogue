@@ -963,7 +963,8 @@ class HealthPotion(Item):
 			g.print_msg("Your HP is already full!")
 			return False
 		else:
-			recover = 10 + random.randint(0, div_rand(MAX_HP, 4)) + random.randint(0, div_rand(MAX_HP, 4))
+			#recover = 10 + random.randint(0, div_rand(MAX_HP, 4)) + random.randint(0, div_rand(MAX_HP, 4))
+			recover = 10 + dice(2, 35) #No longer scales with max HP. Buffed average healing to compensate.
 			g.print_msg("You recover some HP.")
 			player.HP = min(MAX_HP, player.HP + recover)
 			return True
@@ -1069,8 +1070,8 @@ class StunScroll(Scroll):
 		g = player.g
 		g.print_msg("You read a scroll of stun. The scroll crumbles to dust.")
 		seen = list(player.monsters_in_fov())
+		random.shuffle(seen)
 		affects = seen[:random.randint(1, len(seen))]
-		random.shuffle(affects)
 		for m in affects:
 			if m.HP <= random.randint(125, 175):
 				g.print_msg(f"The {m.name} is stunned!")
