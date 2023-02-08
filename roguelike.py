@@ -1871,7 +1871,7 @@ class Monster(Entity):
 				self.energy = min(self.energy, 0) 
 		self.tick_effects()
 			
-	def tick_effects(self)
+	def tick_effects(self):
 		self.track_timer -= 1
 		for e in list(self.effects.keys()):
 			self.effects[e] -= 1
