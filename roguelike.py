@@ -537,8 +537,9 @@ class Game:
 					
 		if self.level > dice(1, 5) and one_in(3):
 			typ = rand_weighted(
-				(MagicMissile, 2),
-				(PolymorphWand, 1)
+				(MagicMissile, 10),
+				(PolymorphWand, 5),
+				(WandOfFear, 3)
 			)
 			place_item(typ)
 		
@@ -722,16 +723,15 @@ class Game:
 			order = self.monsters[:]
 			random.shuffle(order)
 			order.sort(key=lambda m: m.get_speed(), reverse=True)
+			self.player.energy += self.player.get_speed()		
 			for m in order:
 				if m.HP > 0:
 					m.do_turn()
 				else:
 					self.monsters.remove(m)
 				if self.player.dead:
-					return
-			self.player.energy += self.player.get_speed()
-				
-
+					return	
+					
 class Entity:
 	
 	def __init__(self, g):
@@ -1294,6 +1294,19 @@ class PolymorphWand(Wand):
 			self.g.print_msg(f"The {target.name} resists.")
 		else:
 			target.polymorph()
+			
+class WandOfFear(Wand):
+	description = "This wand can be used to make nearby enemies frightened of the player."
+	
+	def __init__(self):
+		super().__init__("wand of fear", random.randint(random.randint(2, 7), 7))
+	
+	def wand_effect(self, player, target):
+		if dice(1, 20) + calc_mod(target.WIS) >= 15:
+			self.g.print_msg(f"The {target.name} resists.")
+		else:
+			self.g.print_msg(f"The {target.name} is frightened!")
+			target.gain_effect("Frightened", random.randint(30, 60))
 		
 class Player(Entity):
 	
@@ -1321,8 +1334,7 @@ class Player(Entity):
 		self.moved = False
 		self.last_moved = False
 		self.grappled_by = []
-		
-		
+			
 	def add_grapple(self, mon):
 		if mon in self.grappled_by:
 			return False
@@ -1655,13 +1667,16 @@ class Player(Entity):
 		if adv:
 			roll = max(roll, dice(1, 20))
 		crit = False
+		eff_ac = mon.AC
+		if mon.has_effect("Paralyzed"):
+			eff_ac = min(eff_ac, 5)
 		if roll == 1:
 			hits = False
 		elif roll == 20:
 			hits = True
-			crit = dice(1, 20) + calc_mod(self.STR) >= mon.AC
+			crit = dice(1, 20) + calc_mod(self.STR) >= eff_ac
 		else:
-			hits = roll + calc_mod(self.STR) >= mon.AC
+			hits = roll + calc_mod(self.STR) >= eff_ac
 		if sneak_attack:
 			if one_in(3):
 				self.g.print_msg(f"The {mon.name} is caught off-guard by your sneak attack!")
@@ -1846,6 +1861,7 @@ class Monster(Entity):
 	def lose_effect(self, name):
 		if name in self.effects:
 			del self.effects[name]
+			
 	def do_turn(self):
 		self.energy += self.get_speed()
 		while self.energy > 0:
@@ -1853,6 +1869,9 @@ class Monster(Entity):
 			self.actions()
 			if self.energy == old:
 				self.energy = min(self.energy, 0) 
+		self.tick_effects()
+			
+	def tick_effects(self)
 		self.track_timer -= 1
 		for e in list(self.effects.keys()):
 			self.effects[e] -= 1
@@ -1862,6 +1881,8 @@ class Monster(Entity):
 					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} is no longer confused.")
 				elif e == "Stunned":
 					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} is no longer stunned.")
+				elif e == "Frightened":
+					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} regains courage.")
 				
 	def should_use_ranged(self):
 		board = self.g.board
@@ -2012,18 +2033,20 @@ class Monster(Entity):
 				random.shuffle(dirs)
 				dist = self.distance(player)
 				if dist <= 1 and one_in(4): #If we are already next to the player when frightened, there's a small chance we try to attack before running away
+					self.energy -= self.speed()
 					self.do_melee_attack()
 				else:
 					for dx, dy in dirs:
 						newx, newy = self.x + dx, self.y + dy	
 						newdist = abs(newx - player.x) + abs(newy - player.y)
-						if newdist >= dist:
+						if newdist >= dist: #Don't move closer to the player
 							self.move(dx, dy)
 							break
 					else:
 						if dist <= 1 and one_in(3): #If we are frightened and nowhere to run, sometimes try to attack
+							self.energy -= self.speed()
 							self.do_melee_attack()
-			elif one_in(2) and dice(1, 20) + calc_mod(self.WIS) >= 10:
+			elif one_in(2) and dice(1, 20) + calc_mod(self.WIS) >= 15:
 				self.lose_effect("Frightened")
 		elif self.is_aware and (self.sees_player() or guessplayer):
 			xdist = player.x - self.x
