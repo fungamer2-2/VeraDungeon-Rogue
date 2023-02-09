@@ -540,7 +540,7 @@ class Game:
 			typ = rand_weighted(
 				(MagicMissile, 10),
 				(PolymorphWand, 5),
-				(WandOfFear, 3)
+				(WandOfFear, 3),
 				(LightningWand, 2)
 			)
 			place_item(typ)
