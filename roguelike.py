@@ -394,6 +394,7 @@ class Game:
 		self.monsters = []
 		self.msg_list = deque(maxlen=50)
 		self.msg_cursor = 0
+		self.blast = set()
 		self.projectile = None
 		self.select = None
 		self.level = 1
@@ -535,11 +536,12 @@ class Game:
 				elif x_in_y(60, 100):
 					break
 					
-		if self.level > dice(1, 5) and one_in(3):
+		if self.level > dice(1, 5) and x_in_y(3, 8):
 			typ = rand_weighted(
 				(MagicMissile, 10),
 				(PolymorphWand, 5),
 				(WandOfFear, 3)
+				(LightningWand, 2)
 			)
 			place_item(typ)
 		
@@ -653,9 +655,11 @@ class Game:
 					screen.addstr(row + offset, col, s, color)
 				except curses.error:
 					pass
+		monpos = set()
 		for m in self.monsters:
 			x, y = m.x, m.y
 			if (x, y) in fov:
+				monpos.add((x, y))
 				color = curses.color_pair(3) if m.ranged else 0
 				if m.has_effect("Confused"):
 					color = curses.color_pair(4)
@@ -665,13 +669,18 @@ class Game:
 					if m.has_effect("Asleep"):
 						color = curses.color_pair(4)
 					color |= curses.A_REVERSE
-				if m is self.select:
+				if m is self.select or (m.x, m.y) in self.blast:
 					color = curses.color_pair(2)
 					color |= curses.A_REVERSE 
 				try:
 					screen.addstr(y+offset, x, m.symbol, color)
 				except curses.error:
 					pass
+		for x, y in (self.blast - monpos):
+			try:
+				screen.addstr(y+offset, x, " ", curses.color_pair(2) | curses.A_REVERSE)
+			except curses.error:
+				pass
 		width = get_terminal_size().columns
 		max_lines = self.get_max_lines()
 		messages = list(islice(self.msg_list, self.msg_cursor, self.msg_cursor+self.get_max_lines()))
@@ -1055,6 +1064,7 @@ class SleepScroll(Scroll):
 			for m in to_affect:
 				g.print_msg(f"The {m.name} falls asleep!")
 				m.gain_effect("Asleep", random.randint(30, 45))
+				m.reset_check_timer()
 				m.is_aware = False
 		else:
 			g.print_msg("Nothing seems to happen.")
@@ -1197,9 +1207,10 @@ class PlateArmor(Armor):
 class Wand(Item):
 	description = "This is a wand."
 	
-	def __init__(self, name, charges):
+	def __init__(self, name, charges, efftype="blast"):
 		super().__init__(name, "Î")
 		self.charges = charges
+		self.efftype = efftype
 	
 	def wand_effect(self, player, mon):
 		self.g.print_msg("Nothing special seems to happen.")
@@ -1242,21 +1253,61 @@ class Wand(Item):
 			else:
 				line = list(g.board.line_between((target.x, target.y), (player.x, player.y)))
 				line.reverse()
-			for x, y in line:
-				g.set_projectile_pos(x, y)
-				g.draw_board()
-				time.sleep(0.03)
-				if (t := g.get_monster(x, y)) is not None:
-					if t is not target and x_in_y(3, 5): #If a creature is in the way, we may hit it instead of our intended target.
-						g.print_msg(f"The {t.name} is in the way.")
-						target = t
+			if self.efftype == "ray":
+				t = player.distance(target)
+				def raycast(line, rnd):
+					line.clear()
+					dx = target.x - player.x
+					dy = target.y - player.y
+					i = 1
+					x, y = player.x, player.y
+					hittarget = False
+					while True:
+						nx = rnd(player.x + dx * (i/t))
+						ny = rnd(player.y + dy * (i/t))
+						i += 1
+						if (nx, ny) == (x, y):
+							continue
+						if (x, y) == (target.x, target.y):
+							hittarget = True
+						if g.board.blocks_sight(nx, ny):
+							return hittarget #The ray should at least hit the target if it doesn't reach anyone else
+						x, y = nx, ny
+						line.append((x, y))
+				rounds = (int, round, math.ceil) #Try different rounding functions, to ensure that the ray hits at least the target
+				line = []
+				for f in rounds:
+					if raycast(line, f):
 						break
-			g.clear_projectile()
-			self.wand_effect(player, target)
+				g.blast.clear()
+				for x, y in line:
+					t = g.get_monster(x, y)
+					if t is not None:
+						self.wand_effect(player, t)
+						t.on_alerted()
+					g.blast.add((x, y))
+					g.draw_board()
+					time.sleep(0.001)
+				time.sleep(0.05)
+				g.blast.clear()
+				g.draw_board()
+			else:
+				for x, y in line:
+					g.set_projectile_pos(x, y)
+					g.draw_board()
+					time.sleep(0.03)
+					if (t := g.get_monster(x, y)) is not None:
+						if t is not target and x_in_y(3, 5): #If a creature is in the way, we may hit it instead of our intended target.
+							g.print_msg(f"The {t.name} is in the way.")
+							target = t
+							break
+				g.clear_projectile()
+				self.wand_effect(player, target)
 			self.charges -= 1
 			player.did_attack = True
+			alert = 2 + (self.efftype == "ray") #Ray effects that affect all monsters in a line are much more likely to alert monsters
 			for m in player.monsters_in_fov():
-				if one_in(2) or m is target: #Zapping a wand is very likely to alert nearby monsters to your position
+				if x_in_y(alert, 4) or m is target: #Zapping a wand is very likely to alert nearby monsters to your position
 					m.on_alerted()
 		return self.charges <= 0
 		
@@ -1276,7 +1327,7 @@ class MagicMissile(Wand):
 			msg += " but do no damage."
 		else:
 			target.HP -= dam
-			msg += "."
+			msg += " for {dam} damage."
 			if target.HP > 0:
 				msg += f" Its HP: {target.HP}/{target.MAX_HP}"
 		g.print_msg(msg)
@@ -1307,6 +1358,30 @@ class WandOfFear(Wand):
 		else:
 			self.g.print_msg(f"The {target.name} is frightened!")
 			target.gain_effect("Frightened", random.randint(30, 60))
+	
+class LightningWand(Wand):
+	description = "This wand can be used to cast lightning bolts, dealing damage to nearby enemies."
+	
+	def __init__(self):
+		super().__init__("wand of lightning", random.randint(random.randint(2, 7), 7), efftype="ray")
+	
+	def wand_effect(self, player, target):
+		g = player.g
+		val = calc_mod(2 * (target.AC - 10) + 10)
+		numdice = 8
+		if dice(1, 20) + val >= 15:
+			numdice = 4
+			g.print_msg(f"The {target.name} partially resists.")
+		damage = target.apply_armor(dice(numdice, 6))
+		msg = f"The bolt strikes the {target.name} "
+		if damage <= 0:
+			msg += "but does no damage."
+		else:
+			msg += f"for {damage} damage."
+			target.HP -= damage
+		g.print_msg(msg)
+		if target.HP <= 0:
+			player.defeated_monster(target)
 		
 class Player(Entity):
 	
@@ -1721,12 +1796,14 @@ class Player(Entity):
 				
 	def defeated_monster(self, mon):
 		self.g.print_msg(f"The {mon.name} dies!", "green")
+		numbefore = len(self.g.monsters)
 		self.g.remove_monster(mon)
+		numafter = len(self.g.monsters)
 		self.remove_grapple(mon)
 		lev = mon.diff - 1
 		gain = math.ceil(min(6 * 2**lev, 30 * 1.5**lev))
 		self.gain_exp(gain)
-		if not self.g.monsters:
+		if numbefore > 0 and numafter == 0:
 			if self.g.level == 1:
 				self.g.print_msg("Level complete! Move onto the stairs marked with a \">\", then press SPACE to go down to the next level.")
 			board = self.g.board
@@ -1853,7 +1930,7 @@ class Monster(Entity):
 	def gain_effect(self, name, duration):
 		if name not in self.effects:
 			self.effects[name] = 0
-		if name in ["Asleep", "Stunned"]:
+		if name in ["Asleep", "Stunned", "Paralyzed"]:
 			player = self.g.player
 			player.remove_grapple(self)
 		self.effects[name] += duration
