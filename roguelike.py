@@ -1274,7 +1274,7 @@ class Wand(Item):
 							return hittarget #The ray should at least hit the target if it doesn't reach anyone else
 						x, y = nx, ny
 						line.append((x, y))
-				rounds = (int, round, math.ceil) #Try different rounding functions, to ensure that the ray hits at least the target
+				rounds = (int, round, math.ceil) #Try different rounding functions, to ensure that the ray passes through at least the target
 				line = []
 				for f in rounds:
 					if raycast(line, f):
