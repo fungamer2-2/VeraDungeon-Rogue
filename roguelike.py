@@ -1453,6 +1453,7 @@ class Player(Entity):
 	def gain_exp(self, amount):
 		self.exp += amount
 		old_level = self.level
+		dex_inc = False
 		while self.exp >= self.max_exp():
 			self.exp -= self.max_exp()
 			self.level += 1
@@ -1461,6 +1462,7 @@ class Player(Entity):
 					self.STR += 1
 				else:
 					self.DEX += 1
+					dex_inc = True
 			if self.level % 3 == 0:
 				self.g.print_msg(f"You leveled up to level {(self.level)}!", "green")
 				old_level = self.level
@@ -1472,10 +1474,16 @@ class Player(Entity):
 						break
 					elif user == "D":
 						self.DEX += 1
+						dex_inc = True
 						break
 					else:
 						self.g.print_msg("Please enter \"S\" or \"D\"")
-						
+		if dex_inc and player.armor:
+			softcap = player.armor.dex_mod_softcap
+			if softcap is not None:
+				thresh = 10 + softcap * 2
+				if self.DEX >= thresh:
+					self.g.print_msg("Note: Any dodge bonus beyond this level of DEX is reduced due to your heavy armor.")	
 		if self.level > old_level:
 			self.g.print_msg(f"You leveled up to level {(self.level)}!", "green")
 			self.MAX_HP = 100 + (self.level - 1)*15
