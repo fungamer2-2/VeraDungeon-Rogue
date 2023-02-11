@@ -492,14 +492,12 @@ class Game:
 		num = random.randint(3, 4) + random.randint(0, int(1.4*(self.level - 1)**0.65))
 		monsters = Monster.__subclasses__()
 		for _ in range(num):
-			tries = 0
-			while True:
-				typ = random.choice(monsters)
-				if self.level > int((typ.min_level - 1)*random.uniform(1, 1.7)):
-					break
-				tries += 1
-				if tries >= 500:
-					break
+			pool = []
+			for t in monsters:
+				if self.level > int((t.min_level - 1)*random.uniform(1, 1.7)):
+					pool.append(t)
+			assert len(pool) > 0
+			typ = random.choice(pool)	
 			m = typ(self)
 			if m.place_randomly():
 				if one_in(2):
@@ -513,7 +511,7 @@ class Game:
 				self.monsters.append(m)
 		
 		def place_item(typ):
-			for j in range(200):
+			for j in range(250):
 				x = random.randint(1, self.board.cols - 2)
 				y = random.randint(1, self.board.rows - 2)
 				if self.board.is_passable(x, y):
@@ -536,7 +534,7 @@ class Game:
 				elif x_in_y(60, 100):
 					break
 					
-		if self.level > dice(1, 5) and x_in_y(3, 8):
+		if self.level > dice(1, 6) and x_in_y(3, 8):
 			typ = rand_weighted(
 				(MagicMissile, 10),
 				(PolymorphWand, 5),
@@ -971,9 +969,8 @@ class HealthPotion(Item):
 		if player.HP >= MAX_HP:
 			g.print_msg("Your HP is already full!")
 			return False
-		else:
-			#recover = 10 + random.randint(0, div_rand(MAX_HP, 4)) + random.randint(0, div_rand(MAX_HP, 4))
-			recover = 10 + dice(2, 35) #No longer scales with max HP. Buffed average healing to compensate.
+		else:	
+			recover = 10 + dice(2, 35)
 			g.print_msg("You recover some HP.")
 			player.HP = min(MAX_HP, player.HP + recover)
 			return True
@@ -1341,8 +1338,9 @@ class PolymorphWand(Wand):
 		super().__init__("polymorph wand", random.randint(random.randint(2, 7), 7))
 	
 	def wand_effect(self, player, target):
+		g = player.g
 		if dice(1, 20) + calc_mod(target.WIS) >= 15:
-			self.g.print_msg(f"The {target.name} resists.")
+			g.print_msg(f"The {target.name} resists.")
 		else:
 			target.polymorph()
 			
@@ -1353,10 +1351,11 @@ class WandOfFear(Wand):
 		super().__init__("wand of fear", random.randint(random.randint(2, 7), 7))
 	
 	def wand_effect(self, player, target):
+		g = player.g
 		if dice(1, 20) + calc_mod(target.WIS) >= 15:
-			self.g.print_msg(f"The {target.name} resists.")
+			g.print_msg(f"The {target.name} resists.")
 		else:
-			self.g.print_msg(f"The {target.name} is frightened!")
+			g.print_msg(f"The {target.name} is frightened!")
 			target.gain_effect("Frightened", random.randint(30, 60))
 	
 class LightningWand(Wand):
@@ -1369,7 +1368,7 @@ class LightningWand(Wand):
 		g = player.g
 		val = calc_mod(2 * (target.AC - 10) + 10)
 		numdice = 8
-		if dice(1, 20) + val >= 15:
+		if not target.has_effect("Paralyzed") and dice(1, 20) + val >= 15:
 			numdice = 4
 			g.print_msg(f"The {target.name} partially resists.")
 		damage = target.apply_armor(dice(numdice, 6))
@@ -2030,6 +2029,43 @@ class Monster(Entity):
 			if isinstance(att, list):
 				att = random.choice(att)
 			self.melee_attack_player(att)
+		
+	def do_ranged_attack(self):
+		if not self.ranged:
+			return
+		player = self.g.player
+		self.g.print_msg(f"The {self.name} makes a ranged attack at you.")
+		for point in board.line_between((self.x, self.y), (player.x, player.y), skipfirst=True, skiplast=True):
+			self.g.set_projectile_pos(*point)
+			self.g.draw_board()
+			time.sleep(0.08)
+		self.g.clear_projectile()
+		roll = dice(1, 20)
+		if player.has_effect("Invisible") or self.has_effect("Frightened"): #The player is harder to hit when invisible
+			roll = min(roll, dice(1, 20))
+		bonus = self.to_hit
+		dodge_mod = player.get_ac_bonus()
+		AC = 10 + dodge_mod
+		total = roll + self.to_hit
+		if roll == 1:
+			hits = False
+		elif roll == 20:
+			hits = True
+		else:
+			hits = player.dead or total >= AC
+		if not hits:
+			if roll > 1 and total >= AC - dodge_mod:
+				self.g.print_msg("You dodge the projectile.")
+			else:
+				self.g.print_msg("The projectile misses you.")
+		else:
+			damage = self.modify_damage(dice(*self.ranged_dam))
+			if damage:
+				self.g.print_msg(f"You are hit for {damage} damage!", "red")
+				player.take_damage(damage)
+			else:
+				self.g.print_msg("The projectile hits you but does no damage.")
+		self.energy -= self.get_speed()
 			
 	def sees_player(self):
 		player = self.g.player
@@ -2089,7 +2125,7 @@ class Monster(Entity):
 		return max(0, dam - random.randint(0, mult_rand_frac(self.armor, 3, 2)))
 		
 	def actions(self):
-		if self.has_effect("Asleep") or self.has_effect("Stunned"): #If we're asleep or stunned, return early
+		if self.has_effect("Asleep") or self.has_effect("Stunned") or self.has_effect("Paralyzed"):
 			self.energy = 0
 			return
 		board = self.g.board
@@ -2128,9 +2164,12 @@ class Monster(Entity):
 							self.move(dx, dy)
 							break
 					else:
-						if dist <= 1 and one_in(3): #If we are frightened and nowhere to run, sometimes try to attack
-							self.energy -= self.speed()
-							self.do_melee_attack()
+						if one_in(3): #If we are frightened and nowhere to run, try attacking
+							if dist <= 1:
+								self.energy -= self.speed()
+								self.do_melee_attack()
+							elif self.ranged and self.should_use_ranged():
+								self.do_ranged_attack()
 			elif one_in(2) and dice(1, 20) + calc_mod(self.WIS) >= 15:
 				self.lose_effect("Frightened")
 		elif self.is_aware and (self.sees_player() or guessplayer):
@@ -2142,38 +2181,7 @@ class Monster(Entity):
 				self.energy -= self.get_speed()
 				self.do_melee_attack()
 			elif self.ranged and self.should_use_ranged():
-				self.g.print_msg(f"The {self.name} makes a ranged attack at you.")
-				for point in board.line_between((self.x, self.y), (player.x, player.y), skipfirst=True, skiplast=True):
-					self.g.set_projectile_pos(*point)
-					self.g.draw_board()
-					time.sleep(0.08)
-				self.g.clear_projectile()
-				roll = dice(1, 20)
-				if player.has_effect("Invisible"): #The player is harder to hit when invisible
-					roll = min(roll, dice(1, 20))
-				bonus = self.to_hit
-				dodge_mod = player.get_ac_bonus()
-				AC = 10 + dodge_mod
-				total = roll + self.to_hit
-				if roll == 1:
-					hits = False
-				elif roll == 20:
-					hits = True
-				else:
-					hits = player.dead or total >= AC
-				if not hits:
-					if roll > 1 and total >= AC - dodge_mod:
-						self.g.print_msg("You dodge the projectile.")
-					else:
-						self.g.print_msg("The projectile misses you.")
-				else:
-					damage = self.modify_damage(dice(*self.ranged_dam))
-					if damage:
-						self.g.print_msg(f"You are hit for {damage} damage!", "red")
-						player.take_damage(damage)
-					else:
-						self.g.print_msg("The projectile hits you but does no damage.")
-				self.energy -= self.get_speed()
+				self.do_ranged_attack()
 			else:
 				dx = 1 if xdist > 0 else (-1 if xdist < 0 else 0)
 				dy = 1 if ydist > 0 else (-1 if ydist < 0 else 0)
