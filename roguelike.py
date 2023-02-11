@@ -2637,7 +2637,7 @@ class GiantScorpion(Monster):
 
 class AdhesiveSlimeAttack(Attack):
 	
-	def __init__(self):# v temp changed from 6 to 1
+	def __init__(self):
 		super().__init__((1, 8), 6, "The {0} attacks you")
 	
 	def on_hit(self, player, mon, dmg):
@@ -2648,7 +2648,7 @@ class AdhesiveSlimeAttack(Attack):
 class GiantGreenSlime(Monster):
 	diff = 8
 	speed = 30
-	min_level = 1#24
+	min_level = 24
 	AC = 12
 	WIS = 8
 	to_hit = 4
@@ -2660,7 +2660,7 @@ class GiantGreenSlime(Monster):
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "giant green slime", 114, False)
+		super().__init__(g, "giant green slime", 168, False)
 		
 g = Game()
 
