@@ -1410,6 +1410,8 @@ class Player(Entity):
 		self.grappled_by = []
 			
 	def add_grapple(self, mon):
+		if mon.distance(self) > 1: #Can't grapple if we're not close enough'
+			return False
 		if mon in self.grappled_by:
 			return False
 		self.grappled_by.append(mon)
@@ -1512,7 +1514,6 @@ class Player(Entity):
 			g.print_msg("You're lethally poisoned!", "red")
 		else:
 			g.print_msg("You are poisoned!", "yellow")
-		
 	
 	def take_damage(self, dam, poison=False):
 		if dam <= 0:
@@ -1841,6 +1842,9 @@ class Attack:
 		
 	def on_hit(self, player, mon, dmg):
 		pass
+		
+warnings = []
+symbols = {}
 								
 class Monster(Entity):
 	min_level = 1
@@ -1854,8 +1858,9 @@ class Monster(Entity):
 	armor = 0
 	attacks = [Attack((1, 3), 0)]
 	beast = True
+	symbol = "?"
 	
-	def __init__(self, g, name="monster", symbol=None, HP=10, ranged=None, ranged_dam=(2, 3)):
+	def __init__(self, g, name="monster", HP=10, ranged=None, ranged_dam=(2, 3)):
 		super().__init__(g)
 		if ranged is None:
 			ranged = one_in(5)
@@ -1865,12 +1870,18 @@ class Monster(Entity):
 		self.ranged = ranged
 		self.last_seen = None
 		self.dir = None
-		self._symbol = symbol
 		self.ranged_dam = ranged_dam
 		self.track_timer = 0
 		self.is_aware = False
 		self.check_timer = 1
 		self.effects = {}
+		
+	def __init_subclass__(cls):
+		if cls.symbol in symbols:
+			other = symbols[cls.symbol] 
+			warnings.append(f"WARNING: {cls.__name__} has same symbol as {other.__name__}")
+		else:
+			symbols[cls.symbol] = cls
 				
 	def get_speed(self):
 		speed = self.speed
@@ -1879,12 +1890,6 @@ class Monster(Entity):
 		
 	def reset_check_timer(self):
 		self.check_timer = random.randint(1, 3)
-	
-	@property	
-	def symbol(self):
-		if self._symbol:
-			return self._symbol
-		return "R" if self.ranged else "&"
 	
 	def move(self, dx, dy):
 		if super().move(dx, dy):
@@ -2248,14 +2253,15 @@ class Bat(Monster):
 	diff = 1
 	AC = 12
 	WIS = 12
+	symbol = "w"
 	attacks = [
 		Attack((1, 3), 0, "The {0} bites you")
 	]	
 	
 	def __init__(self, g):
-		#name, symbol, HP, ranged, ranged_dam
+		#name, HP, ranged, ranged_dam
 		#ranged == None means there is a chance of it using a ranged attack
-		super().__init__(g, "bat", "w", 3, False)
+		super().__init__(g, "bat", 3, False)
 
 
 class Lizard(Monster):
@@ -2264,12 +2270,13 @@ class Lizard(Monster):
 	speed = 20
 	passive_perc = 9
 	WIS = 8
+	symbol = "r"
 	attacks = [
 		Attack((1, 3), 0, "The {0} bites you")
 	]
 	
 	def __init__(self, g):
-		super().__init__(g, "lizard", "r", 4, False)
+		super().__init__(g, "lizard", 4, False)
 				
 class Kobold(Monster):
 	diff = 2
@@ -2279,12 +2286,13 @@ class Kobold(Monster):
 	to_hit = 4
 	passive_perc = 8
 	beast = False
+	symbol = "K"
 	attacks = [
 		Attack((2, 4), 4, "The {0} hits you with its dagger")
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "kobold", "K", 10, None, (2, 4))
+		super().__init__(g, "kobold", 10, None, (2, 4))
 
 class ClawGrapple(Attack):
 	
@@ -2308,12 +2316,13 @@ class GiantCrab(Monster):
 	to_hit = 3
 	armor = 2
 	passive_perc = 9
+	symbol = "C"
 	attacks = [
 		CrabClaw()
 	]
 	
 	def __init__(self, g):
-		super().__init__(g, "giant crab", "C", 20, False)	
+		super().__init__(g, "giant crab", 20, False)	
 						
 class GiantRat(Monster):
 	diff = 2
@@ -2321,12 +2330,13 @@ class GiantRat(Monster):
 	AC = 12
 	to_hit = 4
 	passive_perc = 10
+	symbol = "R"
 	attacks = [
 		Attack((2, 4), 4, "The {0} bites you")
 	]
 	
 	def __init__(self, g):
-		super().__init__(g, "giant rat", "R", 14, False)
+		super().__init__(g, "giant rat", 14, False)
 
 
 class PoisonBite(Attack):
@@ -2348,12 +2358,13 @@ class GiantPoisonousSnake(Monster):
 	WIS = 10
 	to_hit = 6
 	passive_perc = 10
+	symbol = "S"
 	attacks = [
 		PoisonBite()
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "giant poisonous snake", "S", 22, False)
+		super().__init__(g, "giant poisonous snake", 22, False)
 
 class Skeleton(Monster):
 	diff = 3
@@ -2364,12 +2375,13 @@ class Skeleton(Monster):
 	armor = 1
 	passive_perc = 9
 	beast = False
+	symbol = "F"
 	attacks = [
 		Attack((2, 6), 4, "The {0} hits you with its shortsword")
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "skeleton", "F", 26, None, (2, 6))
+		super().__init__(g, "skeleton", 26, None, (2, 6))
 
 class GiantBat(Monster):
 	diff = 3
@@ -2378,12 +2390,13 @@ class GiantBat(Monster):
 	AC = 13
 	WIS = 12
 	to_hit = 4
+	symbol = "W"
 	attacks = [
 		Attack((2, 6), 4, "The {0} bites you")
 	]
 
 	def __init__(self, g):
-		super().__init__(g, "giant bat", "W", 26, False)
+		super().__init__(g, "giant bat", 26, False)
 
 class GiantLizard(Monster):
 	diff = 3
@@ -2391,12 +2404,13 @@ class GiantLizard(Monster):
 	AC = 12
 	to_hit = 4
 	passive_perc = 10
+	symbol = "L"
 	attacks = [
 		Attack((2, 8), 4, "The {0} bites you")
 	]
 	
 	def __init__(self, g):
-		super().__init__(g, "giant lizard", "L", 38, False)
+		super().__init__(g, "giant lizard", 38, False)
 
 class GiantGoat(Monster):
 	diff = 4
@@ -2405,12 +2419,13 @@ class GiantGoat(Monster):
 	AC = 11
 	WIS = 12
 	to_hit = 5
+	symbol = "G"
 	attacks = [
 		Attack((4, 4), 4, "The {0} rams you")
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "giant goat", "G", 38, False)
+		super().__init__(g, "giant goat", 38, False)
 
 class Orc(Monster):
 	diff = 4
@@ -2422,12 +2437,13 @@ class Orc(Monster):
 	armor = 2
 	passive_perc = 10
 	beast = False
+	symbol = "O"
 	attacks = [
 		Attack((2, 12), 3, "The {0} hits you with its greataxe")
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "orc", "O", 30, None, (2, 6))
+		super().__init__(g, "orc", 30, None, (2, 6))
 
 class BlackBear(Monster):
 	diff = 4
@@ -2438,13 +2454,14 @@ class BlackBear(Monster):
 	to_hit = 3
 	armor = 1
 	passive_perc = 13
+	symbol = "B"
 	attacks = [
 		Attack((2, 6), 3, "The {0} bites you"),
 		Attack((4, 4), 3, "The {0} claws you")
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "black bear", "B", 38, False)
+		super().__init__(g, "black bear", 38, False)
 
 class BrownBear(Monster):
 	diff = 5
@@ -2455,13 +2472,14 @@ class BrownBear(Monster):
 	to_hit = 3
 	armor = 1
 	passive_perc = 13
+	symbol = "&"
 	attacks = [
 		Attack((2, 8), 3, "The {0} bites you"),
 		Attack((4, 6), 3, "The {0} claws you")
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "brown bear", "&", 68, False)
+		super().__init__(g, "brown bear", 68, False)
 
 class GiantEagle(Monster):
 	diff = 5
@@ -2470,13 +2488,14 @@ class GiantEagle(Monster):
 	min_level = 16
 	to_hit = 5
 	passive_perc = 14
+	symbol = "E"
 	attacks = [
 		Attack((2, 6), 5, "The {0} attacks you with its beak"),
 		Attack((4, 6), 5, "The {0} attacks you with its talons")
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "giant eagle", "E", 52, False)
+		super().__init__(g, "giant eagle", 52, False)
 
 class Ogre(Monster):
 	diff = 6
@@ -2487,13 +2506,13 @@ class Ogre(Monster):
 	armor = 2
 	passive_perc = 8
 	beast = False
-	
+	symbol = "J"
 	attacks = [
 		Attack((2, 6), 6, "The {0} hits you with its club"),
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "ogre", "J", 118, False)
+		super().__init__(g, "ogre", 118, False)
 
 class PolarBear(Monster):
 	diff = 6
@@ -2504,13 +2523,14 @@ class PolarBear(Monster):
 	to_hit = 7
 	armor = 2
 	passive_perc = 13
+	symbol = "P"
 	attacks = [
 		Attack((2, 8), 7, "The {0} bites you"),
 		Attack((4, 6), 7, "The {0} claws you")
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "polar bear", "P", 84, False)
+		super().__init__(g, "polar bear", 84, False)
 
 class Rhinoceros(Monster):
 	diff = 6
@@ -2521,12 +2541,13 @@ class Rhinoceros(Monster):
 	to_hit = 7
 	armor = 2
 	passive_perc = 13
+	symbol = "Y"
 	attacks = [
 		Attack((2, 8), 7, "The {0} gores you")
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "rhinoceros", "Y", 90, False)
+		super().__init__(g, "rhinoceros", 90, False)
 
 class WightLifeDrain(Attack):
 	
@@ -2547,6 +2568,7 @@ class Wight(Monster):
 	to_hit = 4
 	armor = 2
 	passive_perc = 13
+	symbol = "T"
 	attacks = [
 		Attack((2, 8), 7, "The {0} hits you with its longsword"),
 		[
@@ -2556,7 +2578,7 @@ class Wight(Monster):
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "wight", "T", 90, False)
+		super().__init__(g, "wight", 90, False)
 
 class Sasquatch(Monster):
 	diff = 7
@@ -2568,6 +2590,7 @@ class Sasquatch(Monster):
 	armor = 2
 	passive_perc = 17
 	beast = False
+	symbol = "Q"
 	attacks = [
 		Attack((2, 8), 6, "The {0} punches you with its fist"),
 		Attack((2, 8), 6, "The {0} punches you with its fist")
@@ -2602,7 +2625,7 @@ class GiantScorpion(Monster):
 	to_hit = 4
 	passive_perc = 9
 	grapple_dc = 12
-	
+	symbol = "D"
 	attacks = [
 		ScorpionClaw(),
 		ScorpionClaw(),
@@ -2610,11 +2633,41 @@ class GiantScorpion(Monster):
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "giant scorpion", "D", 98, False)
+		super().__init__(g, "giant scorpion", 98, False)
+
+class AdhesiveSlimeAttack(Attack):
+	
+	def __init__(self):# v temp changed from 6 to 1
+		super().__init__((1, 8), 6, "The {0} attacks you")
+	
+	def on_hit(self, player, mon, dmg):
+		g = player.g
+		if not one_in(6) and player.add_grapple(mon):
+			g.print_msg(f"The {mon.name} adheres to you and grapples you!", "red")
+
+class GiantGreenSlime(Monster):
+	diff = 8
+	speed = 30
+	min_level = 1#24
+	AC = 12
+	WIS = 8
+	to_hit = 4
+	passive_perc = 9
+	grapple_dc = 18
+	symbol = "M"
+	attacks = [
+		AdhesiveSlimeAttack(),
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "giant green slime", 114, False)
 		
 g = Game()
+
 try:
 	g.print_msg("Press \"?\" if you want to view the controls.")
+	for w in warnings:
+		g.print_msg(w, "yellow")
 	g.generate_level()
 	while not g.player.dead:
 		refresh = False
