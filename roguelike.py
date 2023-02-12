@@ -1719,7 +1719,7 @@ class Player(Entity):
 		mod = self.stealth_mod()
 		for m in self.g.monsters:
 			m.check_timer -= 1
-			if m.check_timer <= 0 or self.did_attack:
+			if m.check_timer <= 0 or self.did_attack or one_in(15): #Very occasionally make the check before the timer reaches zero
 				m.reset_check_timer()
 				if not m.is_aware or self.did_attack: #If you attack while invisible, maybe alert the nearby monsters to your position
 					roll = dice(1, 20)
@@ -1902,22 +1902,23 @@ class Monster(Entity):
 		types = Monster.__subclasses__()
 		candidates = list(filter(lambda typ: typ.diff <= self.diff and typ.beast and typ != self.__class__, types))
 		assert len(candidates) > 0
-		tries = 60
-		while tries > 0:
-			maxdiff = max(1, self.diff - one_in(2))
-			newdiff = 1
-			for _ in range(random.randint(2, 3)):
-				newdiff = random.randint(newdiff, maxdiff)
-			choices = list(filter(lambda typ: newdiff == typ.diff, candidates))
-			if not choices:
-				tries -= 1
-				continue
-			while True:
-				chosen = random.choice(choices)
-				if one_in(5) or chosen(g).MAX_HP < self.MAX_HP:
-					return chosen
-				
-		return random.choice(candidates)
+		maxdiff = max(1, self.diff - one_in(2))
+		newdiff = 1
+		for _ in range(random.randint(2, 3)):
+			newdiff = random.randint(newdiff, maxdiff)
+		choices = list(filter(lambda typ: newdiff == typ.diff, candidates))
+		if not choices:
+			return random.choice(candidates)
+		chosen = None
+		while True:
+			chosen = random.choice(choices)
+			if one_in(6):
+				break
+			inst = chosen(g)
+			if inst.MAX_HP < self.MAX_HP:
+				if chosen.armor <= self.armor or one_in(2):
+					break
+		return chosen		
 		
 	def polymorph(self):
 		oldname = self.name
@@ -2000,10 +2001,10 @@ class Monster(Entity):
 				attack = random.choice(attack)
 		player = self.g.player
 		roll = dice(1, 20)
-		disadv = False
-		if player.has_effect("Invisible") or self.has_effect("Frightened"):
-			disadv = True
-		if disadv:
+		disadv = 0
+		disadv += player.has_effect("Invisible")
+		disadv += self.has_effect("Frightened")
+		for _ in range(disadv):
 			roll = min(roll, dice(1, 20))
 		ac_mod = player.get_ac_bonus()
 		AC = 10 + ac_mod
@@ -2039,6 +2040,7 @@ class Monster(Entity):
 		if not self.ranged:
 			return
 		player = self.g.player
+		board = self.g.board
 		self.g.print_msg(f"The {self.name} makes a ranged attack at you.")
 		for point in board.line_between((self.x, self.y), (player.x, player.y), skipfirst=True, skiplast=True):
 			self.g.set_projectile_pos(*point)
