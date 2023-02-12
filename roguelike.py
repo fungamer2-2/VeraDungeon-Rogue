@@ -2640,7 +2640,7 @@ class GiantScorpion(Monster):
 class AdhesiveSlimeAttack(Attack):
 	
 	def __init__(self):
-		super().__init__((1, 8), 6, "The {0} attacks you")
+		super().__init__((6, 8), 6, "The {0} attacks you")
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g
@@ -2655,7 +2655,7 @@ class GiantGreenSlime(Monster):
 	WIS = 8
 	to_hit = 4
 	passive_perc = 9
-	grapple_dc = 18
+	grapple_dc = 19 #It's so sticky that the escape DC is set quite high
 	symbol = "M"
 	attacks = [
 		AdhesiveSlimeAttack(),
