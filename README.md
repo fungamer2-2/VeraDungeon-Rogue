@@ -6,8 +6,11 @@ Discord Server: https://discord.gg/dKRGTgxT65
 Current version: 0.3 <br />
 (Note: This is currently a work in progress)
 
-To play the game, all you need is a Python 3 Interpreter<br />
-(Due to use of walrus operators, this doesn't work for Python versions below 3.8, however this game has only been tested on Python 3.9)
+### How to run the game<br />
+- Install Python from https://www.python.org/<br />
+(Note: Must have at least Python 3.8)
+
+- Download `roguelike.py`, then run the command `python3 roguelike.py`
 
 ### Controls<br />
 `wasd` keys to move around<br />
