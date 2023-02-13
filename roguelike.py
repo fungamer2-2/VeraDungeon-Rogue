@@ -1027,7 +1027,7 @@ class InvisibilityPotion(Item):
 		return True
 		
 class RejuvPotion(Item):
-	description = "Consuming this potion significantly improves regeneratiom for a short duration."
+	description = "Consuming this potion significantly improves regeneration for a short duration."
 	
 	def __init__(self):
 		super().__init__("potion of rejuvenation", "J")
@@ -1342,12 +1342,12 @@ class MagicMissile(Wand):
 		dam = 0
 		for _ in range(3):
 			dam += target.apply_armor(random.randint(2, 5))
-		msg = f"The magic missiles hit the {target.name}"
+		msg = f"The magic missiles hit the {target.name} "
 		if dam <= 0:
-			msg += " but do no damage."
+			msg += "but do no damage."
 		else:
 			target.HP -= dam
-			msg += " for {dam} damage."
+			msg += f"for {dam} damage."
 			if target.HP > 0:
 				msg += f" Its HP: {target.HP}/{target.MAX_HP}"
 		g.print_msg(msg)
