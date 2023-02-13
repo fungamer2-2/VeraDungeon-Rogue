@@ -1036,7 +1036,7 @@ class RejuvPotion(Item):
 		g = player.g
 		g.print_msg("You drink a potion of rejuvenation.")
 		if player.has_effect("Rejuvenated"):
-			player.remove_effect("Rejuvenated") #This doesn't stack
+			player.lose_effect("Rejuvenated", silent=True) #This doesn't stack
 		g.print_msg("You drink a potion of rejuvenation.")
 		player.gain_effect("Rejuvenated", random.randint(20, 25))
 		return True
@@ -1644,8 +1644,10 @@ class Player(Entity):
 			dist = abs(self.x - m.x) + abs(self.y - m.y)
 			if m.has_effect("Confused") or m.has_effect("Stunned"): #Confused monsters can't make opportunity attacks
 				continue
-			mon_speed = m.get_speed() 
-			if m.is_aware and m.sees_player() and dist == 2 and (mon_speed > speed or (mon_speed == speed and random.randint(1, 2) == 1)) and random.randint(1, 3) == 1:
+			mon_speed = m.get_speed()
+			fuzz = speed//3
+			is_faster = mon_speed > speed + random.randint(-fuzz, fuzz)
+			if m.is_aware and m.sees_player() and dist >= 2 and is_faster and one_in(3):
 				self.g.print_msg(f"As you move away from {m.name}, it makes an opportunity attack!", "yellow")
 				m.melee_attack_player(force=True)
 		self.energy -= 30
@@ -1971,7 +1973,7 @@ class Monster(Entity):
 	def has_effect(self, name):
 		return name in self.effects
 		
-	def remove_effect(self, name):
+	def lose_effect(self, name):
 		if name in self.effects:
 			del self.effects[name]
 		
