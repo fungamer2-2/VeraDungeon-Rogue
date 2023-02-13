@@ -522,10 +522,11 @@ class Game:
 							
 		if not one_in(4):
 			types = [
-				(HealthPotion, 25),
-				(ResistPotion, 10),
-				(SpeedPotion, 10),
-				(InvisibilityPotion, 6)
+				(HealthPotion, 50),
+				(ResistPotion, 20),
+				(SpeedPotion, 20),
+				(InvisibilityPotion, 12),
+				(RejuvPotion, 3)
 			]
 			for _ in range(4):
 				if x_in_y(45, 100):
@@ -933,7 +934,14 @@ class Invisible(Effect):
 	
 	def __init__(self, duration):
 		super().__init__(duration, "You become invisible.", "You become visible again.")
+
+class Rejuvenated(Effect):
+	name = "Rejuvenated"
+	
+	def __init__(self, duration):
+		super().__init__(duration, "You begin to feel extremely rejuvenated.", "The rejuvenation wears off.")
 		
+						
 class Item:
 	description = "This is a generic item that does nothing special. If you see this, it's a bug."
 	
@@ -1018,6 +1026,21 @@ class InvisibilityPotion(Item):
 		player.gain_effect("Invisible", random.randint(45, 70))
 		return True
 		
+class RejuvPotion(Item):
+	description = "Consuming this potion significantly improves regeneratiom for a short duration."
+	
+	def __init__(self):
+		super().__init__("potion of rejuvenation", "J")
+		
+	def use(self, player):
+		g = player.g
+		g.print_msg("You drink a potion of rejuvenation.")
+		if player.has_effect("Rejuvenated"):
+			player.remove_effect("Rejuvenated") #This doesn't stack
+		g.print_msg("You drink a potion of rejuvenation.")
+		player.gain_effect("Rejuvenated", random.randint(20, 25))
+		return True
+
 class ConfusionScroll(Scroll):
 	description = "Reading this scroll may cause nearby monsters to become confused."
 	
@@ -1479,8 +1502,8 @@ class Player(Entity):
 						break
 					else:
 						self.g.print_msg("Please enter \"S\" or \"D\"")
-		if dex_inc and player.armor:
-			softcap = player.armor.dex_mod_softcap
+		if dex_inc and self.armor:
+			softcap = self.armor.dex_mod_softcap
 			if softcap is not None:
 				thresh = 10 + softcap * 2
 				if self.DEX >= thresh:
@@ -1509,8 +1532,12 @@ class Player(Entity):
 			self.dead = True	
 	
 	def do_poison(self, amount):
+		if amount <= 0:
+			return
 		self.poison += amount
-		if self.poison >= self.HP:
+		if self.has_effect("Rejuvenated"):
+			g.print_msg("The rejunenation blocks the effects of the poison in your system.")
+		elif self.poison >= self.HP:
 			g.print_msg("You're lethally poisoned!", "red")
 		else:
 			g.print_msg("You are poisoned!", "yellow")
@@ -1700,18 +1727,26 @@ class Player(Entity):
 			dmg = random.randint(1, maxdmg)
 			if dmg > self.poison:
 				dmg = self.poison
-			self.take_damage(dmg, True)
 			self.poison -= dmg
-			if maxdmg > 3:
-				if one_in(2):
-					self.g.print_msg("You feel very sick.", "red")
-			elif one_in(3):
-				self.g.print_msg("You feel sick.", "red")
+			if not self.has_effect("Rejuvenated"): #Rejuvenation allows poison to tick down without doing any damage
+				self.take_damage(dmg, True)
+				if maxdmg > 3:
+					if one_in(2):
+						self.g.print_msg("You feel very sick.", "red")
+				elif one_in(3):
+					self.g.print_msg("You feel sick.", "red")
 		elif self.HP < self.get_max_hp():
 			self.ticks += 1
 			if self.ticks % 6 == 0:
 				self.HP += 1
-		if self.ticks % 6 == 0:
+		if self.has_effect("Rejuvenated"):
+			if self.hp_drain > 0:
+				self.hp_drain -= 1
+			self.HP += random.randint(4, 8)
+			self.HP = min(self.HP, self.get_max_hp())
+			if self.ticks % 6 == 0:
+				self.g.print_msg("You feel extremely rejuvenated.", "green")
+		elif self.ticks % 6 == 0:
 			if self.hp_drain > 0 and one_in(4):
 				self.hp_drain -= 1
 		for e in list(self.effects.keys()):
@@ -2644,7 +2679,7 @@ class AdhesiveSlimeAttack(Attack):
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g
-		if not one_in(6) and player.add_grapple(mon):
+		if not one_in(7) and player.add_grapple(mon):
 			g.print_msg(f"The {mon.name} adheres to you and grapples you!", "red")
 
 class GiantGreenSlime(Monster):
@@ -2675,10 +2710,24 @@ try:
 		refresh = False
 		lastenergy = g.player.energy
 		if g.player.resting:
+			g.screen.nodelay(True)
+			char = g.screen.getch()
+			done = False
+			if char != -1 and chr(char) == "r":
+				g.screen.nodelay(False)
+				if g.yes_no("Really cancel your rest?"):
+					done = True
+					g.print_msg("You stop resting.")
+				else:
+					g.print_msg("You continue resting.")
+					g.screen.nodelay(True)
 			time.sleep(0.005)
 			g.player.energy = 0
-			if g.player.HP >= g.player.get_max_hp():
+			if not done and g.player.HP >= g.player.get_max_hp():
 				g.print_msg("HP restored.", "green")
+				done = True
+			if done:
+				g.screen.nodelay(False)
 				g.player.resting = False
 				g.player.energy = random.randint(1, g.player.get_speed())
 				refresh = True
@@ -2692,6 +2741,7 @@ try:
 				refresh = True
 				g.player.energy = random.randint(1, g.player.get_speed())
 		else:
+			g.screen.nodelay(False)
 			curses.flushinp()
 			char = chr(g.screen.getch())
 			if char == "w":
