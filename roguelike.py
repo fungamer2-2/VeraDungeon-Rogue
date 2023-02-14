@@ -465,6 +465,9 @@ class Game:
 	def clear_projectile(self):
 		self.projectile = None
 		
+	def spawn_item(self, item, pos):
+		self.board.get(*pos).items.append(item)
+		
 	def input(self, message=None):
 		if message:
 			self.print_msg(message)
@@ -552,6 +555,21 @@ class Game:
 				(ConfusionScroll, 2)
 			)
 			place_item(typ)
+			
+		if not one_in(3):
+			types = [
+				(Club, 60),
+				(Dagger, 30),
+				(Greatclub, 30),
+				(Mace, 12),
+				(Battleaxe, 6),
+				(Glaive, 3),
+				(Greataxe, 2),
+			]
+			for _ in range(random.randint(2, 3)):
+				if not one_in(3):
+					place_item(rand_weighted(*types))
+			
 		if self.level > 1 and x_in_y(min(55 + self.level, 80), 100):
 			types = [LeatherArmor]
 			if self.level > 2:
@@ -643,6 +661,8 @@ class Game:
 						color = curses.color_pair(4) | curses.A_BOLD
 					elif isinstance(item, Wand):
 						color = curses.color_pair(5) | curses.A_BOLD
+					elif isinstance(item, Weapon):
+						color = curses.color_pair(5) | curses.A_REVERSE
 				elif tile.symbol == " ":
 					if (col, row) in fov:
 						s = "."
@@ -699,6 +719,13 @@ class Game:
 		screen.addstr(0, wd - len(str_string), str_string)
 		dex_string = f"DEX {self.player.DEX}"
 		screen.addstr(1, wd - len(dex_string), dex_string)
+		weapon = self.player.weapon
+		if weapon:
+			X, Y = weapon.dmg
+			w = f"{weapon.name} ({X}d{Y})"
+		else:
+			w = "unarmed (1d2)"
+		screen.addstr(2, wd - len(w), w)
 		armor = self.player.armor
 		if armor:
 			ar_str = f"{armor.name} ({armor.protect})"
@@ -1223,6 +1250,76 @@ class PlateArmor(Armor):
 				
 	def __init__(self):
 		super().__init__("plate armor", "T", 8)
+		
+class Weapon(Item):
+	description = "This is a weapon that can be used to attack enemies."
+	
+	def __init__(self, name, symbol, dmg, finesse=False, heavy=False):
+		super().__init__(name, symbol)
+		self.dmg = dmg
+		self.finesse = finesse
+		self.heavy = heavy #Heavy weapons get a -2 penalty on attack rolls
+	
+	def use(self, player):
+		g = player.g
+		if self is player.weapon:
+			if g.yes_no("Put away your {self.name}?"):
+				player.weapon = None
+		else:
+			if player.weapon:
+				player.energy -= player.get_speed()
+				g.print_msg(f"You switch to your {self.name}.")
+			else:
+				g.print_msg(f"You wield a {self.name}.")
+			player.weapon = self
+		return False
+		
+	def roll_dmg(self):
+		return dice(*self.dmg)
+		
+	def on_hit(self, player, mon):
+		pass
+
+class Club(Weapon):
+	
+	def __init__(self):
+		super().__init__("club", "!", (1, 4))
+		
+class Dagger(Weapon):
+	
+	def __init__(self):
+		super().__init__("dagger", "/", (1, 4), finesse=True)
+
+class Mace(Weapon):
+	
+	def __init__(self):
+		super().__init__("mace", "T", (1, 6))
+
+class Shortsword(Weapon):
+	
+	def __init__(self):
+		super().__init__("shortsword", "i", (1, 6), finesse=True)
+
+
+class Greatclub(Weapon):
+	
+	def __init__(self):
+		super().__init__("greatclub", "P", (1, 8))
+
+class Battleaxe(Weapon):
+	
+	def __init__(self):
+		super().__init__("battleaxe", "F", (1, 9))
+
+class Glaive(Weapon):
+	
+	def __init__(self):
+		super().__init__("glaive", "L", (1, 10), heavy=True)
+		
+class Greataxe(Weapon):
+	
+	def __init__(self):
+		super().__init__("greataxe", "G", (2, 6), heavy=True)
 
 class Wand(Item):
 	description = "This is a wand."
@@ -1414,6 +1511,7 @@ class Player(Entity):
 		self.dead = False
 		self.ticks = 0
 		self.resting = False
+		self.weapon = None
 		self.inventory = []
 		self.exp = 0
 		self.level = 1
@@ -1765,8 +1863,28 @@ class Player(Entity):
 						perc -= 5
 					if (m.x, m.y) in self.fov and (roll == 1 or roll + div_rand(self.DEX - 10, 2) + mod < perc):
 						m.on_alerted()
-						m.remove_effect("Asleep")
+						m.lose_effect("Asleep")
 		self.did_attack = False
+		
+	def attack_stat(self):
+		stat = self.STR
+		if self.weapon and self.weapon.finesse:
+			stat = max(stat, self.DEX)
+		return stat
+		
+	def attack_mod(self, avg=False):
+		stat = self.attack_stat()
+		mod = calc_mod(stat, avg=avg)
+		if self.weapon:
+			if self.weapon.heavy:
+				mod -= 2
+		else:
+			mod += 2
+		return mod
+		
+	def base_damage_roll(self):
+		w = self.weapon
+		return w.roll_dmg() if w else dice(1, 2)
 				
 	def attack(self, dx, dy):
 		x, y = self.x + dx, self.y + dy
@@ -1780,8 +1898,10 @@ class Player(Entity):
 		adv = False
 		if not mon.is_aware or self.has_effect("Invisible"):
 			adv = True
+		finesse = self.weapon is not None and self.weapon.finesse
+		unarmed = not self.weapon
 		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) >= mon.passive_perc
-		sneak_attack = sneak_attack and one_in(2)
+		sneak_attack = sneak_attack and x_in_y(3 + finesse - unarmed, 7)
 		if mon.has_effect("Asleep"):
 			sneak_attack = True
 		if adv:
@@ -1790,13 +1910,14 @@ class Player(Entity):
 		eff_ac = mon.AC
 		if mon.has_effect("Paralyzed"):
 			eff_ac = min(eff_ac, 5)
+		mod = self.attack_mod()
 		if roll == 1:
 			hits = False
 		elif roll == 20:
 			hits = True
-			crit = dice(1, 20) + calc_mod(self.STR) >= eff_ac
+			crit = dice(1, 20) + mod >= eff_ac
 		else:
-			hits = roll + calc_mod(self.STR) >= eff_ac
+			hits = roll + mod >= eff_ac
 		if sneak_attack:
 			if one_in(3):
 				self.g.print_msg(f"The {mon.name} is caught off-guard by your sneak attack!")
@@ -1805,23 +1926,30 @@ class Player(Entity):
 			hits = True
 		if mon.has_effect("Asleep"):
 			hits = True
-			mon.remove_effect("Asleep")
+			mon.lose_effect("Asleep")
 		mon.on_alerted()
 		if not sneak_attack: #If we did a sneak attack, let's continue to be stealthy
 			self.did_attack = True
 		if not hits:
 			self.g.print_msg(f"Your attack misses the {mon.name}.")
 		else:
-			dam = dice(1, 6)
+			stat = self.attack_stat()
+			dam = self.base_damage_roll()
 			if crit:
-				dam += dice(1, 6)
+				dam += self.base_damage_roll()
 			if sneak_attack:
 				scale = 6
-				val = random.randint(1, self.level)
+				lev = self.level
+				if finesse:
+					lev = mult_rand_frac(lev, 4, 3)
+				val = random.randint(1, lev)
 				scale_int = 1 + (val - 1) // scale
 				scale_mod = (val - 1) % scale
-				dam += dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, scale)
-			dam += div_rand(self.STR - 10, 2)
+				bonus = dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, scale)
+				if unarmed:
+					bonus = max(1, div_rand(bonus, 3))
+				dam += bonus
+			dam += div_rand(stat - 10, 2)
 			dam = mon.apply_armor(dam)
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
 			dam = max(dam, min_dam)
@@ -1848,6 +1976,10 @@ class Player(Entity):
 		lev = mon.diff - 1
 		gain = math.ceil(min(6 * 2**lev, 30 * 1.5**lev))
 		self.gain_exp(gain)
+		if mon.weapon and one_in(3):
+			weapon = mon.weapon()
+			self.g.print_msg(f"The {mon.name} drops its {weapon.name}!", "green")
+			self.g.spawn_item(weapon, (mon.x, mon.y))
 		if numbefore > 0 and numafter == 0:
 			if self.g.level == 1:
 				self.g.print_msg("Level complete! Move onto the stairs marked with a \">\", then press SPACE to go down to the next level.")
@@ -1896,6 +2028,7 @@ class Monster(Entity):
 	attacks = [Attack((1, 3), 0)]
 	beast = True
 	symbol = "?"
+	weapon = None
 	
 	def __init__(self, g, name="monster", HP=10, ranged=None, ranged_dam=(2, 3)):
 		super().__init__(g)
@@ -2326,6 +2459,7 @@ class Kobold(Monster):
 	passive_perc = 8
 	beast = False
 	symbol = "K"
+	weapon = Dagger
 	attacks = [
 		Attack((2, 4), 4, "The {0} hits you with its dagger")
 	]
@@ -2353,7 +2487,7 @@ class GiantCrab(Monster):
 	AC = 12
 	WIS = 9
 	to_hit = 3
-	armor = 2
+	armor = 1
 	passive_perc = 9
 	symbol = "C"
 	attacks = [
@@ -2415,6 +2549,7 @@ class Skeleton(Monster):
 	passive_perc = 9
 	beast = False
 	symbol = "F"
+	weapon = Shortsword
 	attacks = [
 		Attack((2, 6), 4, "The {0} hits you with its shortsword")
 	]
@@ -2477,6 +2612,7 @@ class Orc(Monster):
 	passive_perc = 10
 	beast = False
 	symbol = "O"
+	weapon = Greataxe
 	attacks = [
 		Attack((2, 12), 3, "The {0} hits you with its greataxe")
 	]
@@ -2546,6 +2682,7 @@ class Ogre(Monster):
 	passive_perc = 8
 	beast = False
 	symbol = "J"
+	weapon = Club
 	attacks = [
 		Attack((2, 6), 6, "The {0} hits you with its club"),
 	]
@@ -2781,12 +2918,11 @@ try:
 					fov_mons = rem_dup[:]
 					del rem_dup
 					ac_bonus = g.player.get_ac_bonus(avg=True)
+					mod = g.player.attack_mod(avg=True)
 					str_mod = calc_mod(g.player.STR, avg=True)
 					for m in fov_mons:
-						hit_prob = to_hit_prob(m.AC, str_mod)
-						hit_adv = to_hit_prob(m.AC, str_mod, adv=True) #Probability with advantage
-						#TODO: Remove to_hit from the Attack object as they seem to be the same for monsters
-						#The to_hit can just be linked to the monster value instead
+						hit_prob = to_hit_prob(m.AC, mod)
+						hit_adv = to_hit_prob(m.AC, mod, adv=True) #Probability with advantage
 						be_hit = to_hit_prob(10 + ac_bonus, m.to_hit)
 						be_hit_disadv = to_hit_prob(10 + ac_bonus, m.to_hit, disadv=True)
 						string = f"{m.symbol} - {m.name} "
