@@ -483,6 +483,43 @@ class Game:
 			self.print_msg("Please enter \"Y\" or \"N\"")
 		return choice == "y"
 		
+	def select_monster_target(self, cond=None, error="None of the monsters are eligible targets."):
+		monsters = list(self.player.monsters_in_fov())
+		if not monsters:
+			self.print_msg("You don't see any monsters to target.")
+			return None
+		if cond:
+			monsters = list(filter(cond, monsters))
+			if not monsters:
+				self.print_msg(error)
+				return None
+		self.print_msg("Target which monster?")
+		self.print_msg("Use the a and d keys to select")
+		monsters.sort(key=lambda m: m.y)
+		monsters.sort(key=lambda m: m.x)
+		index = random.randrange(len(monsters))
+		last = -1
+		while True:
+			self.select = monsters[index]
+			if last != index:
+				self.draw_board()
+				last = index
+			curses.flushinp()
+			num = self.screen.getch()
+			char = chr(num)
+			if char == "a":
+				index -= 1
+				if index < 0:
+					index += len(monsters)
+			elif char == "d":
+				index += 1
+				if index >= len(monsters):
+					index -= len(monsters)
+			if num == 10:
+				break
+		self.select = None
+		return monsters[index]
+		
 	def add_monster(self, m):
 		if m.place_randomly():
 			self.monsters.append(m)
@@ -561,6 +598,8 @@ class Game:
 				(Club, 60),
 				(Dagger, 30),
 				(Greatclub, 30),
+				(Handaxe, 12),
+				(Javelin, 12),
 				(Mace, 12),
 				(Battleaxe, 6),
 				(Glaive, 3),
@@ -1254,17 +1293,21 @@ class PlateArmor(Armor):
 class Weapon(Item):
 	description = "This is a weapon that can be used to attack enemies."
 	
-	def __init__(self, name, symbol, dmg, finesse=False, heavy=False):
+	def __init__(self, name, symbol, dmg, finesse=False, heavy=False, thrown=None):
 		super().__init__(name, symbol)
 		self.dmg = dmg
 		self.finesse = finesse
 		self.heavy = heavy #Heavy weapons get a -2 penalty on attack rolls
-	
+		self.thrown = thrown #Either None or a 2-tuple representing short and long range
+		
 	def use(self, player):
 		g = player.g
 		if self is player.weapon:
-			if g.yes_no("Put away your {self.name}?"):
+			if g.yes_no(f"Put away your {self.name}?"):
 				player.weapon = None
+				player.energy -= player.get_speed()
+			else:
+				return False
 		else:
 			if player.weapon:
 				player.energy -= player.get_speed()
@@ -1272,8 +1315,7 @@ class Weapon(Item):
 			else:
 				g.print_msg(f"You wield a {self.name}.")
 			player.weapon = self
-		return False
-		
+			
 	def roll_dmg(self):
 		return dice(*self.dmg)
 		
@@ -1288,7 +1330,17 @@ class Club(Weapon):
 class Dagger(Weapon):
 	
 	def __init__(self):
-		super().__init__("dagger", "/", (1, 4), finesse=True)
+		super().__init__("dagger", "/", (1, 4), finesse=True, thrown=(4, 12))
+
+class Handaxe(Weapon):
+	
+	def __init__(self):
+		super().__init__("handaxe", "h", (1, 6), thrown=(4, 12))
+
+class Javelin(Weapon):
+	
+	def __init__(self):
+		super().__init__("javelin", "j", (1, 6), thrown=(6, 24))
 
 class Mace(Weapon):
 	
@@ -1299,7 +1351,6 @@ class Shortsword(Weapon):
 	
 	def __init__(self):
 		super().__init__("shortsword", "i", (1, 6), finesse=True)
-
 
 class Greatclub(Weapon):
 	
@@ -1336,97 +1387,71 @@ class Wand(Item):
 		g = player.g
 		monsters = list(player.monsters_in_fov())
 		g.print_msg(f"This wand has {self.charges} charges remaining.")
-		if not monsters:
-			g.print_msg("You don't see any monsters to target.")
+		target = g.select_monster_target()
+		if not target:
+			return
+		if g.board.line_of_sight((player.x, player.y), (target.x, target.y)):
+			line = list(g.board.line_between((player.x, player.y), (target.x, target.y)))
 		else:
-			g.print_msg("Target which monster?")
-			g.print_msg("Use the a and d keys to select")
-			monsters.sort(key=lambda m: m.y)
-			monsters.sort(key=lambda m: m.x)
-			index = random.randrange(len(monsters))
-			last = -1
-			while True:
-				g.select = monsters[index]
-				if last != index:
-					g.draw_board()
-					last = index
-				curses.flushinp()
-				num = g.screen.getch()
-				char = chr(num)
-				if char == "a":
-					index -= 1
-					if index < 0:
-						index += len(monsters)
-				elif char == "d":
-					index += 1
-					if index >= len(monsters):
-						index -= len(monsters)
-				if num == 10:
+			line = list(g.board.line_between((target.x, target.y), (player.x, player.y)))
+			line.reverse()
+		if self.efftype == "ray":
+			t = player.distance(target)
+			def raycast(line, rnd):
+				line.clear()
+				dx = target.x - player.x
+				dy = target.y - player.y
+				i = 1
+				x, y = player.x, player.y
+				hittarget = False
+				while True:
+					nx = rnd(player.x + dx * (i/t))
+					ny = rnd(player.y + dy * (i/t))
+					i += 1
+					if (nx, ny) == (x, y):
+						continue
+					if (x, y) == (target.x, target.y):
+						hittarget = True
+					if g.board.blocks_sight(nx, ny):
+						return hittarget #The ray should at least hit the target if it doesn't reach anyone else
+					x, y = nx, ny
+					line.append((x, y))
+			rounds = (int, round, math.ceil) #Try different rounding functions, to ensure that the ray passes through at least the target
+			line = []
+			for f in rounds:
+				if raycast(line, f):
 					break
-			g.select = None
-			target = monsters[index]
-			if g.board.line_of_sight((player.x, player.y), (target.x, target.y)):
-				line = list(g.board.line_between((player.x, player.y), (target.x, target.y)))
-			else:
-				line = list(g.board.line_between((target.x, target.y), (player.x, player.y)))
-				line.reverse()
-			if self.efftype == "ray":
-				t = player.distance(target)
-				def raycast(line, rnd):
-					line.clear()
-					dx = target.x - player.x
-					dy = target.y - player.y
-					i = 1
-					x, y = player.x, player.y
-					hittarget = False
-					while True:
-						nx = rnd(player.x + dx * (i/t))
-						ny = rnd(player.y + dy * (i/t))
-						i += 1
-						if (nx, ny) == (x, y):
-							continue
-						if (x, y) == (target.x, target.y):
-							hittarget = True
-						if g.board.blocks_sight(nx, ny):
-							return hittarget #The ray should at least hit the target if it doesn't reach anyone else
-						x, y = nx, ny
-						line.append((x, y))
-				rounds = (int, round, math.ceil) #Try different rounding functions, to ensure that the ray passes through at least the target
-				line = []
-				for f in rounds:
-					if raycast(line, f):
-						break
-				g.blast.clear()
-				for x, y in line:
-					t = g.get_monster(x, y)
-					if t is not None:
-						self.wand_effect(player, t)
-						t.on_alerted()
-					g.blast.add((x, y))
-					g.draw_board()
-					time.sleep(0.001)
-				time.sleep(0.05)
-				g.blast.clear()
+			g.blast.clear()
+			for x, y in line:
+				t = g.get_monster(x, y)
+				if t is not None:
+					self.wand_effect(player, t)
+					t.on_alerted()
+				g.blast.add((x, y))
 				g.draw_board()
-			else:
-				for x, y in line:
-					g.set_projectile_pos(x, y)
-					g.draw_board()
-					time.sleep(0.03)
-					if (t := g.get_monster(x, y)) is not None:
-						if t is not target and x_in_y(3, 5): #If a creature is in the way, we may hit it instead of our intended target.
-							g.print_msg(f"The {t.name} is in the way.")
-							target = t
-							break
-				g.clear_projectile()
-				self.wand_effect(player, target)
-			self.charges -= 1
-			player.did_attack = True
-			alert = 2 + (self.efftype == "ray") #Ray effects that affect all monsters in a line are much more likely to alert monsters
-			for m in player.monsters_in_fov():
-				if x_in_y(alert, 4) or m is target: #Zapping a wand is very likely to alert nearby monsters to your position
-					m.on_alerted()
-		return self.charges <= 0
+				time.sleep(0.001)
+			time.sleep(0.05)
+			g.blast.clear()
+			g.draw_board()
+		else:
+			for x, y in line:
+				g.set_projectile_pos(x, y)
+				g.draw_board()
+				time.sleep(0.03)
+				if (t := g.get_monster(x, y)) is not None:
+					if t is not target and x_in_y(3, 5): #If a creature is in the way, we may hit it instead of our intended target.
+						g.print_msg(f"The {t.name} is in the way.")
+						target = t
+						break
+			g.clear_projectile()
+			self.wand_effect(player, target)
+		self.charges -= 1
+		player.did_attack = True
+		alert = 2 + (self.efftype == "ray") #Ray effects that affect all monsters in a line are much more likely to alert monsters
+		for m in player.monsters_in_fov():
+			if x_in_y(alert, 4) or m is target: #Zapping a wand is very likely to alert nearby monsters to your position
+				m.on_alerted()
+		return (True if self.charges <= 0 else None)
 		
 class MagicMissile(Wand):
 	description = "This wand can be used to fire magic missiles at creatures, which will always hit."
@@ -1797,6 +1822,115 @@ class Player(Entity):
 				mod -= self.armor.stealth_pen
 		return mod
 		
+	def throw_item(self):
+		throwable = filter(lambda t: isinstance(t, Weapon), self.inventory)
+		throwable = filter(lambda t: t.thrown is not None, throwable)
+		throwable = list(throwable)
+		g = self.g
+		if not throwable:
+			g.print_msg("You don't have any throwable items.")
+			return
+		if not (mons := list(self.monsters_in_fov())):
+			g.print_msg("You don't see any targets to throw an item.")
+			return
+		strings = ", ".join(f"{i+1}. {t.name}" for i, t in enumerate(throwable))
+		g.print_msg("Throw which item? (Enter a number)")
+		g.print_msg(strings)
+		try:
+			num = int(g.input())
+			if num < 1 or num > len(mons):
+				g.print_msg(f"Number must be between 1 and {len(mons)}.")
+				return
+		except ValueError:
+			g.print_msg("You didn't enter a number.")
+			return
+		item = throwable[num - 1]
+		short, long = item.thrown
+		def cond(m): #Here, we take the number of tiles of the LOS line
+			dx = abs(self.x - m.x)
+			dy = abs(self.y - m.y)
+			return max(dx, dy) <= long
+		target = g.select_monster_target(cond, error="None of your targets are within range of your {item.name}.")
+		if not target:
+			return
+		g.select = target
+		dx = abs(self.x - target.x)
+		dy = abs(self.y - target.y)
+		num_tiles = max(dx, dy)
+		pen = 0
+		foe_adjacent = False
+		if (m := g.get_monster(self.x-1, self.y)) and m.is_aware and not m.incapacitated():
+			foe_adjacent = True
+		elif (m := g.get_monster(self.x+1, self.y)) and m.is_aware and not m.incapacitated():
+			foe_adjacent = True
+		elif (m := g.get_monster(self.x, self.y+1)) and m.is_aware and not m.incapacitated():
+			foe_adjacent = True
+		elif (m := g.get_monster(self.x, self.y+1)) and m.is_aware and not m.incapacitated():
+			foe_adjacent = True
+		if foe_adjacent:
+			pen += 4
+		avg_pen = pen
+		if num_tiles > short:
+			scale = 10
+			g.print_msg(f"Ranged accuracy is reduced beyond {short} tiles.", "yellow")
+			pen += mult_rand_frac(num_tiles - short, scale, long - short) 
+			avg_pen += scale*(num_tiles-short)/(long-short)
+		mod = self.attack_mod(avg=False)
+		avg_mod = self.attack_mod(avg=True)
+		mod -= pen
+		avg_mod -= avg_pen
+		AC = target.AC
+		if target.incapacitated():
+			AC = min(AC, 5)
+		prob = to_hit_prob(AC, avg_mod)*100
+		prob_str = display_prob(prob)
+		self.g.print_msg(f"Throwing {item.name} at {target.name} - {prob_str} to-hit.")
+		c = g.input("Press enter to throw, or enter \"C\" to cancel")
+		g.select = None
+		if c and c[0].lower() == "c":
+			return
+		if g.board.line_of_sight((self.x, self.y), (target.x, target.y)):
+			line = list(g.board.line_between((self.x, self.y), (target.x, target.y)))
+		else:
+			line = list(g.board.line_between((target.x, target.y), (self.x, self.y)))
+			line.reverse()
+		for x, y in line:
+			g.set_projectile_pos(x, y)
+			g.draw_board()
+			time.sleep(0.03)
+		g.clear_projectile()
+		roll = dice(1, 20)
+		crit = False
+		if roll == 1:
+			hits = False
+		elif roll == 20:
+			hits = True
+			crit = dice(1, 20) + mod >= AC
+		else:
+			hits = roll + mod >= AC
+		if hits:
+			damage = item.roll_dmg()
+			if crit:
+				damage += item.roll_dmg()
+			damage += calc_mod(self.attack_stat())
+			damage = target.apply_armor(damage)
+			if damage <= 0:
+				g.print_msg(f"The {item.name} hits the {target.name} but does no damage.")
+			else:
+				target.HP -= damage
+				msg = f"The {item.name} hits the {target.name} for {damage} damage."
+				if target.HP > 0:
+					msg += f" Its HP: {target.HP}/{target.MAX_HP}"
+				self.g.print_msg(msg)
+				if crit:
+					self.g.print_msg("Critical!", "green")
+				if target.HP <= 0:
+					self.defeated_monster(target)
+		else:
+			g.print_msg(f"The {item.name} misses the {target.name}.")
+		g.spawn_item(item.__class__(), (target.x, target.y))	
+		self.inventory.remove(item)
+			
 	def detectability(self):
 		d = []
 		mons = list(filter(lambda m: not m.is_aware, self.monsters_in_fov()))
@@ -1818,6 +1952,7 @@ class Player(Entity):
 		self.last_attacked = self.did_attack
 		self.last_moved = self.moved
 		self.moved = False
+		self.ticks += 1
 		for m in self.grappled_by[:]:
 			dist = abs(m.x - self.x) + abs(m.y - self.y)
 			if dist > 1:
@@ -1836,7 +1971,6 @@ class Player(Entity):
 				elif one_in(3):
 					self.g.print_msg("You feel sick.", "red")
 		elif self.HP < self.get_max_hp():
-			self.ticks += 1
 			if self.ticks % 6 == 0:
 				self.HP += 1
 		if self.has_effect("Rejuvenated"):
@@ -2109,14 +2243,21 @@ class Monster(Entity):
 	def lose_effect(self, name):
 		if name in self.effects:
 			del self.effects[name]
+			
+	def incapacitated(self):
+		incap_effs = ["Asleep", "Stunned", "Paralyzed"]
+		for e in incap_effs:
+			if self.has_effect(e):
+				return True
+		return False
 		
 	def gain_effect(self, name, duration):
 		if name not in self.effects:
 			self.effects[name] = 0
-		if name in ["Asleep", "Stunned", "Paralyzed"]:
+		self.effects[name] += duration
+		if self.incapacitated():
 			player = self.g.player
 			player.remove_grapple(self)
-		self.effects[name] += duration
 		
 	def lose_effect(self, name):
 		if name in self.effects:
@@ -2487,7 +2628,7 @@ class GiantCrab(Monster):
 	AC = 12
 	WIS = 9
 	to_hit = 3
-	armor = 2
+	armor = 2	
 	passive_perc = 9
 	symbol = "C"
 	attacks = [
@@ -2981,8 +3122,10 @@ try:
 							g.print_msg(f"Invalid number. Must be between 1 and {len(strings)}")
 						else:
 							item = choices[num - 1]
-							if item.use(g.player):
-								g.player.inventory.remove(item)
+							result = item.use(g.player)
+							if result is not False: #False to not use time up a turn or the item
+								if result is not None: #None uses a turn without removing the item
+									g.player.inventory.remove(item)
 								g.player.energy -= g.player.get_speed()
 					refresh = True
 				else:
@@ -3032,6 +3175,9 @@ try:
 				items = g.board.get(g.player.x, g.player.y).items
 				for item in items:
 					g.print_msg(f"{item.name} - {item.description}")
+				refresh = True
+			elif char == "t":
+				g.player.throw_item()
 				refresh = True
 		moved = g.player.energy < lastenergy
 		if moved:
