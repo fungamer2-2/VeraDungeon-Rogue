@@ -2487,7 +2487,7 @@ class GiantCrab(Monster):
 	AC = 12
 	WIS = 9
 	to_hit = 3
-	armor = 1
+	armor = 2
 	passive_perc = 9
 	symbol = "C"
 	attacks = [
