@@ -1867,7 +1867,7 @@ class Player(Entity):
 			foe_adjacent = True
 		elif (m := g.get_monster(self.x, self.y+1)) and m.is_aware and not m.incapacitated():
 			foe_adjacent = True
-		if foe_adjacent:
+		if foe_adjacent: #If there's a monster who can see us rand is right next to us, it's harder to aim
 			pen += 4
 		avg_pen = pen
 		if num_tiles > short:
