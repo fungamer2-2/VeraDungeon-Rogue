@@ -1930,6 +1930,10 @@ class Player(Entity):
 			g.print_msg(f"The {item.name} misses the {target.name}.")
 		g.spawn_item(item.__class__(), (target.x, target.y))	
 		self.inventory.remove(item)
+		self.did_attack = True
+		for m in self.monsters_in_fov():
+			if m is target or one_in(3):
+				m.on_alerted()
 			
 	def detectability(self):
 		d = []
