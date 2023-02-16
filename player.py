@@ -8,15 +8,14 @@ class Player(Entity):
 	
 	def __init__(self, g):
 		super().__init__(g)
-		self.MAX_HP = 100
-		self.HP = 100
+		self.exp = 0
+		self.level = 1
+		self.HP = self.MAX_HP
 		self.dead = False
 		self.ticks = 0
 		self.resting = False
 		self.weapon = None
 		self.inventory = []
-		self.exp = 0
-		self.level = 1
 		self.energy = 30
 		self.speed = 30
 		self.STR = 10
@@ -110,7 +109,10 @@ class Player(Entity):
 					self.g.print_msg("Note: Any dodge bonus beyond this level of DEX is reduced due to your heavy armor.")	
 		if self.level > old_level:
 			self.g.print_msg(f"You leveled up to level {(self.level)}!", "green")
-			self.MAX_HP = 100 + (self.level - 1)*15
+		
+	@property
+	def MAX_HP(self):	
+		return 100 + (self.level - 1)*20
 	
 	def interrupt(self):
 		if self.resting:

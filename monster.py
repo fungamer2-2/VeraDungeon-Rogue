@@ -72,23 +72,24 @@ class Monster(Entity):
 		types = Monster.__subclasses__()
 		candidates = list(filter(lambda typ: typ.diff <= self.diff and typ.beast and typ != self.__class__, types))
 		assert len(candidates) > 0
-		maxdiff = max(1, self.diff - one_in(2))
-		newdiff = 1
-		for _ in range(random.randint(2, 3)):
-			newdiff = random.randint(newdiff, maxdiff)
-		choices = list(filter(lambda typ: newdiff == typ.diff, candidates))
-		if not choices:
-			return random.choice(candidates)
-		chosen = None
-		while True:
+		tries = 100
+		while tries > 0:
+			tries -= 1
+			maxdiff = max(1, self.diff - one_in(2))
+			newdiff = 1
+			for _ in range(random.randint(2, 3)):
+				newdiff = random.randint(newdiff, maxdiff)
+			choices = list(filter(lambda typ: newdiff == typ.diff, candidates))
+			if not choices:
+				return 
 			chosen = random.choice(choices)
 			if one_in(6):
-				break
-			inst = chosen(g)
+				return chosen
+			inst = chosen(self.g)
 			if inst.MAX_HP < self.MAX_HP:
 				if chosen.armor <= self.armor or one_in(2):
-					break
-		return chosen		
+					return chosen
+		return random.choice(candidates)		
 		
 	def polymorph(self):
 		oldname = self.name
@@ -381,7 +382,7 @@ class Monster(Entity):
 					if not (maintains and dy != 0 and self.move(0, dy)) and dx != 0:
 						self.move(dx, 0)
 				moved = self.energy < old
-				if not moved and self.distance(player) <= 4 and one_in(4):
+				if not moved and self.distance(player) <= 4 and one_in(5):
 					could_route_around = self.g.monster_at(self.x+dx, self.y) or self.g.monster_at(self.x, self.y+dy)
 					if could_route_around:
 						self.path_towards(*self.last_seen, maxlen=self.distance(player)+3)
