@@ -195,73 +195,75 @@ class Game:
 					if not tile.items:
 						tile.items.append(typ())
 						break
-							
-		if not one_in(4):
-			types = [
-				(HealthPotion, 50),
-				(ResistPotion, 20),
-				(SpeedPotion, 20),
-				(InvisibilityPotion, 12),
-				(RejuvPotion, 3)
-			]
-			for _ in range(4):
-				if x_in_y(45, 100):
-					typ = rand_weighted(*types)
-					place_item(typ)	
-				elif x_in_y(60, 100):
-					break
-					
-		if self.level > dice(1, 6) and x_in_y(3, 8):
-			typ = rand_weighted(
-				(MagicMissile, 10),
-				(PolymorphWand, 5),
-				(WandOfFear, 3),
-				(LightningWand, 2)
-			)
-			place_item(typ)
-		
-		if x_in_y(3, 8):
-			typ = rand_weighted(
-				(StunScroll, 1),
-				(TeleportScroll, 2),
-				(SleepScroll, 1),
-				(ConfusionScroll, 2)
-			)
-			place_item(typ)
+						
+		if not one_in(8):					
+			if not one_in(4):
+				types = [
+					(HealthPotion, 50),
+					(ResistPotion, 20),
+					(SpeedPotion, 20),
+					(InvisibilityPotion, 12),
+					(RejuvPotion, 3)
+				]
+				for _ in range(4):
+					if x_in_y(45, 100):
+						typ = rand_weighted(*types)
+						place_item(typ)	
+					elif x_in_y(60, 100):
+						break
+						
+			if self.level > dice(1, 6) and x_in_y(3, 8):
+				typ = rand_weighted(
+					(MagicMissile, 10),
+					(PolymorphWand, 5),
+					(WandOfFear, 3),
+					(LightningWand, 2)
+				)
+				place_item(typ)
 			
-		if not one_in(3):
-			types = [
-				(Club, 60),
-				(Dagger, 30),
-				(Greatclub, 30),
-				(Handaxe, 12),
-				(Javelin, 12),
-				(Mace, 12),
-				(Battleaxe, 6),
-				(Glaive, 3),
-				(Greataxe, 2),
-			]
-			for _ in range(random.randint(2, 3)):
-				if not one_in(3):
-					place_item(rand_weighted(*types))
-			
-		if self.level > 1 and x_in_y(min(55 + self.level, 80), 100):
-			types = [LeatherArmor]
-			if self.level > 2:
-				types.append(HideArmor)
-			if self.level > 5:
-				types.append(ChainShirt)
-			if self.level > 8:
-				types.append(ScaleMail)
-			if self.level > 10:
-				types.append(HalfPlate)
-			num = 1
-			if self.level > random.randint(1, 3) and one_in(3):
-				num += 1
-				if self.level > random.randint(1, 6) and one_in(3):
+			if x_in_y(3, 8):
+				typ = rand_weighted(
+					(StunScroll, 1),
+					(TeleportScroll, 2),
+					(SleepScroll, 1),
+					(ConfusionScroll, 2)
+				)
+				place_item(typ)
+				
+			if not one_in(3):
+				types = [
+					(Club, 60),
+					(Dagger, 30),
+					(Greatclub, 30),
+					(Handaxe, 12),
+					(Javelin, 12),
+					(Mace, 12),
+					(Battleaxe, 6),
+					(Glaive, 3),
+					(Greataxe, 2),
+				]
+				for _ in range(random.randint(2, 3)):
+					if not one_in(3):
+						place_item(rand_weighted(*types))
+				
+			if self.level > 1 and x_in_y(min(55 + self.level, 80), 100):
+				types = [LeatherArmor]
+				if self.level > 2:
+					types.append(HideArmor)
+				if self.level > 5:
+					types.append(ChainShirt)
+				if self.level > 8:
+					types.append(ScaleMail)
+				if self.level > 10:
+					types.append(HalfPlate)
+				num = 1
+				if self.level > random.randint(1, 3) and one_in(3):
 					num += 1
-			for _ in range(num):
-				place_item(random.choice(types))
+					if self.level > random.randint(1, 6) and one_in(3):
+						num += 1
+				for _ in range(num):
+					place_item(random.choice(types))
+			
 		self.draw_board()
 		self.refresh_cache()
 	
