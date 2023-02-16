@@ -371,14 +371,20 @@ class Monster(Entity):
 				dy = 1 if ydist > 0 else (-1 if ydist < 0 else 0)
 				axdist = abs(xdist)
 				aydist = abs(ydist)
+				old = self.energy
 				if axdist > aydist or (axdist == aydist and one_in(2)):
 					maintains = (self.x + dx, self.y) in player.fov #Choose a direction that doesn't break line of sight
-					if not (maintains and self.move(dx, 0)):
+					if not (maintains and dx != 0 and self.move(dx, 0)) and dy != 0:
 						self.move(0, dy)
 				else:
 					maintains =  (self.x, self.y + dy) in player.fov
-					if not (maintains and self.move(0, dy)):
+					if not (maintains and dy != 0 and self.move(0, dy)) and dx != 0:
 						self.move(dx, 0)
+				moved = self.energy < old
+				if not moved and self.distance(player) <= 4 and one_in(4):
+					could_route_around = self.g.monster_at(self.x+dx, self.y) or self.g.monster_at(self.x, self.y+dy)
+					if could_route_around:
+						self.path_towards(*self.last_seen, maxlen=self.distance(player)+3)
 		else:
 			if player.has_effect("Invisible") and (self.x, self.y) == self.last_seen:
 				self.guess_rand_invis() #Guess a random position if the player is invisible

@@ -1,3 +1,4 @@
+import random, time
 from utils import *
 
 from entity import Entity
@@ -405,6 +406,8 @@ class Player(Entity):
 		else:
 			g.print_msg(f"The {item.name} misses the {target.name}.")
 		g.spawn_item(item.__class__(), (target.x, target.y))	
+		if item is self.weapon:
+			self.weapon = None
 		self.inventory.remove(item)
 		self.did_attack = True
 		for m in self.monsters_in_fov():
@@ -587,8 +590,8 @@ class Player(Entity):
 		self.g.remove_monster(mon)
 		numafter = len(self.g.monsters)
 		self.remove_grapple(mon)
-		lev = mon.diff - 1
-		gain = math.ceil(min(6 * 2**lev, 30 * 1.5**lev))
+		val = (mon.diff - 1)**0.85
+		gain = math.ceil(min(12 * 2**val, 60 * 1.5**val) - 6)
 		self.gain_exp(gain)
 		if mon.weapon and one_in(3):
 			weapon = mon.weapon()

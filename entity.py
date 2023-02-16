@@ -81,24 +81,28 @@ class Entity:
 	
 	def distance_pos(self, pos):
 		return abs(self.x - pos[0]) + abs(self.y - pos[1])
-	
-	def move_path(self):
-		if self.curr_target == (self.x, self.y):
-			return False
-		self.path_towards(*self.current_target)
-		return True
 		
-	def path_towards(self, x, y):
+	def clear_path(self):
+		self.curr_path.clear()
+		
+	def path_towards(self, x, y, maxlen=None):
 		if self.curr_target == (x, y) and self.curr_path and self.move_to(*self.curr_path.popleft()):
 			if (self.x, self.y) == (x, y):
-				self.curr_path.clear()
+				self.clear_path()
 			return
 		path = pathfind(self.g.board, (self.x, self.y), (x, y), rand=True)
 		if len(path) < 2:
 			return
+		if maxlen and len(path) > maxlen+1:
+			return
+		currX, currY = self.x, self.y
 		self.curr_target = (x, y)
 		self.curr_path = deque(path[1:])
-		self.move_to(*self.curr_path.popleft())
+		newX, newY = self.curr_path.popleft()
+		self.move_to(newX, newY)
+		
+	def set_path(self, path):
+		self.curr_path = deque(path)
 		
 	def can_place(self, x, y):
 		if (x, y) == (self.g.player.x, self.g.player.y):
