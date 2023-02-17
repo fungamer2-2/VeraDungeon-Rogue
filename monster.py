@@ -10,10 +10,14 @@ class Attack:
 		self.to_hit = to_hit
 		self.msg = msg
 		
+	def can_use(self, mon, player):
+		return True	
+		
 	def on_hit(self, player, mon, dmg):
 		pass
-
+	
 symbols = {}
+dup_warnings = []
 								
 class Monster(Entity):
 	min_level = 1
@@ -30,6 +34,9 @@ class Monster(Entity):
 	symbol = "?"
 	weapon = None
 	
+	#Monster traits
+	rubbery = False
+	
 	def __init__(self, g, name="monster", HP=10, ranged=None, ranged_dam=(2, 3)):
 		super().__init__(g)
 		if ranged is None:
@@ -45,11 +52,20 @@ class Monster(Entity):
 		self.is_aware = False
 		self.check_timer = 1
 		self.effects = {}
+		self.energy = -random.randrange(self.speed)
+		
+	def despawn(self):
+		self.HP = 0
+		self.energy = -self.get_speed()
+		try:
+			self.g.monsters.remove(self)
+		except ValueError:
+			pass
 		
 	def __init_subclass__(cls):
 		if cls.symbol in symbols:
 			other = symbols[cls.symbol] 
-			raise ValueError(f"{cls.__name__} has same symbol as {other.__name__}")
+			dup_warnings.append(f"{cls.__name__} has same symbol as {other.__name__}")
 		else:
 			symbols[cls.symbol] = cls
 				
@@ -174,9 +190,13 @@ class Monster(Entity):
 		
 	def melee_attack_player(self, attack=None, force=False):
 		if attack is None:
-			attack = random.choice(self.attacks)
+			attacks = list(filter(lambda a: a.can_use(self, self.g.player), self.attacks))
+			if not attacks:
+				return
+			attack = random.choice(attacks)
 			if isinstance(attack, list):
-				attack = random.choice(attack)
+				c = list(filter(lambda a: a.can_use(self, self.g.player), attack))
+				attack = random.choice(c)
 		player = self.g.player
 		roll = dice(1, 20)
 		disadv = 0
@@ -211,8 +231,12 @@ class Monster(Entity):
 	def do_melee_attack(self):
 		for att in self.attacks:
 			if isinstance(att, list):
-				att = random.choice(att)
-			self.melee_attack_player(att)
+				attacks = list(filter(lambda a: a.can_use(self, self.g.player), att))
+				if not attacks:
+					continue
+				att = random.choice(attacks)
+			if att.can_use(self, self.g.player):
+				self.melee_attack_player(att)
 		
 	def do_ranged_attack(self):
 		if not self.ranged:
@@ -433,7 +457,8 @@ class Monster(Entity):
 			
 
 #Balance:
-#2x HP and damage from DnD							
+#2x HP and damage from DnD
+#(A lot of these are based on DnD monsters)							
 class Bat(Monster):
 	min_level = 1
 	diff = 1
@@ -759,6 +784,7 @@ class Wight(Monster):
 	armor = 2
 	passive_perc = 13
 	symbol = "T"
+	weapon = Longsword
 	attacks = [
 		Attack((2, 8), 7, "The {0} hits you with its longsword"),
 		[
@@ -833,7 +859,7 @@ class AdhesiveSlimeAttack(Attack):
 	def on_hit(self, player, mon, dmg):
 		g = player.g
 		if not one_in(7) and player.add_grapple(mon):
-			g.print_msg(f"The {mon.name} adheres to you and grapples you!", "red")
+			g.print_msg(f"The {mon.name}'s pseudopod adheres to you, holding you in place!", "red")
 
 class GiantGreenSlime(Monster):
 	diff = 8
@@ -851,3 +877,58 @@ class GiantGreenSlime(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "giant green slime", 168, False)
+
+class Ettin(Monster):
+	diff = 8
+	speed = 40
+	min_level = 26
+	AC = 9
+	WIS = 10
+	to_hit = 7
+	passive_perc = 14
+	armor = 4
+	symbol = "Ň"
+	weapon = [Battleaxe, Morningstar]
+	attacks = [
+		Attack((4, 9), 7, "The {0} attacks you with a battleaxe"),
+		Attack((4, 9), 7, "The {0} attacks you with a morningstar"),
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "ettin", 170, False)
+
+class RubberPseudopod(Attack):
+	
+	def __init__(self):
+		super().__init__((6, 9), 7, "The {0} hits you with its pseudopod")
+
+	def on_hit(self, player, mon, dmg):
+		g = player.g
+		if mon.distance(player) <= 1 and one_in(2) and dice(1, 20) + calc_mod(player.DEX) < 14:
+			dx = player.x - mon.x
+			dy = player.y - mon.y
+			if dx != 0:
+				dx //= abs(dx)
+			if dy != 0:
+				dy //= abs(dy)
+			dx *= 2
+			dy *= 2
+			player.knockback(dx, dy)
+			
+class RubberSlime(Monster):
+	diff = 9
+	speed = 30
+	min_level = 29
+	AC = 9
+	WIS = 10
+	to_hit = 7
+	passive_perc = 10
+	symbol = "U"
+	attacks = [
+		RubberPseudopod()
+	]
+	
+	rubbery = True #It shrugs off most bludgeoning damage
+		
+	def __init__(self, g):
+		super().__init__(g, "rubbery slime", 170, False)

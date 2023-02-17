@@ -33,12 +33,15 @@ from board import *
 from gameobj import *					
 from entity import *		
 from items import *
+from monster import dup_warnings
 
 if __name__ == "__main__":		
 	g = Game()
 	
 	try:
 		g.print_msg("Press \"?\" if you want to view the controls.")
+		for w in dup_warnings:
+			g.print_msg(f"WARNING: {w}", "yellow")
 		g.generate_level()
 		while not g.player.dead:
 			refresh = False
@@ -213,6 +216,11 @@ if __name__ == "__main__":
 						g.generate_level()
 						g.level += 1
 						g.print_msg("You descend deeper into the dungeon.")
+						for m in g.player.monsters_in_fov():
+							if x_in_y(3, g.level):
+								continue
+							if dice(1, 20) + calc_mod(g.player.DEX) - 4 < m.passive_perc:
+								m.is_aware = True
 					else:
 						g.print_msg("You can't go down here.")
 					refresh = True

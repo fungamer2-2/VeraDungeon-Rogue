@@ -2,7 +2,7 @@ import random, time
 from utils import *
 
 from entity import Entity
-from items import Weapon
+from items import Weapon, UNARMED
 
 class Player(Entity):
 	
@@ -14,7 +14,7 @@ class Player(Entity):
 		self.dead = False
 		self.ticks = 0
 		self.resting = False
-		self.weapon = None
+		self.weapon = UNARMED
 		self.inventory = []
 		self.energy = 30
 		self.speed = 30
@@ -301,6 +301,29 @@ class Player(Entity):
 				mod -= self.armor.stealth_pen
 		return mod
 		
+	def knockback(self, dx, dy):
+		if dx == 0 and dy == 0:
+			return
+		self.interrupt()
+		board = self.g.board
+		newpos = self.x+dx, self.y+dy
+		oldpos = (self.x, self.y)
+		dist = 0
+		for x, y in board.line_between(oldpos, newpos, skipfirst=True):
+			if not board.is_passable(x, y):
+				if dist > 0:
+					dam = dice(2, dist*3)
+					self.g.print_msg(f"You take {dam} damage by the impact!", "red")
+					self.take_damage(dam)
+				return
+			if dist == 0:
+				self.g.print_msg("You're knocked back!", "red")
+			dist += 1
+			self.move_to(x, y)
+			self.g.draw_board()
+			time.sleep(0.01)
+		
+		
 	def throw_item(self):
 		throwable = filter(lambda t: isinstance(t, Weapon), self.inventory)
 		throwable = filter(lambda t: t.thrown is not None, throwable)
@@ -393,8 +416,16 @@ class Player(Entity):
 				damage += item.roll_dmg()
 			damage += calc_mod(self.attack_stat())
 			damage = target.apply_armor(damage)
+			if mon.rubbery:
+				if self.weapon.dmg_type == "bludgeon":
+					damage = max(0, damage - random.randint(0, mon.HP))
+				elif self.weapon.dmg_type == "slash":
+					damage = mult_rand_frac(damage, random.randint(250, 750), 1000)
 			if damage <= 0:
-				g.print_msg(f"The {item.name} hits the {target.name} but does no damage.")
+				if mon.rubbery and self.weapon.dmg_type == "bludgeon":
+					g.print_msg(f"The {item.name} harmlessly bounces off the {target.name}.")
+				else:
+					g.print_msg(f"The {item.name} hits the {target.name} but does no damage.")
 			else:
 				target.HP -= damage
 				msg = f"The {item.name} hits the {target.name} for {damage} damage."
@@ -415,6 +446,7 @@ class Player(Entity):
 		for m in self.monsters_in_fov():
 			if m is target or one_in(3):
 				m.on_alerted()
+		self.energy -= self.speed
 			
 	def detectability(self):
 		d = []
@@ -487,7 +519,7 @@ class Player(Entity):
 		
 	def attack_stat(self):
 		stat = self.STR
-		if self.weapon and self.weapon.finesse:
+		if self.weapon.finesse:
 			stat = max(stat, self.DEX)
 		return stat
 		
@@ -517,12 +549,12 @@ class Player(Entity):
 		adv = False
 		if not mon.is_aware or self.has_effect("Invisible"):
 			adv = True
-		finesse = self.weapon is not None and self.weapon.finesse
-		unarmed = not self.weapon
+		finesse = self.weapon.finesse
+		unarmed = self.weapon is UNARMED
 		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) >= mon.passive_perc
 		sneak_attack = sneak_attack and x_in_y(3 + finesse - unarmed, 7)
 		if mon.has_effect("Asleep"):
-			sneak_attack = True
+			sneak_attack = True	
 		if adv:
 			roll = max(roll, dice(1, 20))
 		crit = False
@@ -530,11 +562,15 @@ class Player(Entity):
 		if mon.has_effect("Paralyzed"):
 			eff_ac = min(eff_ac, 5)
 		mod = self.attack_mod()
-		if roll == 1:
+		thresh = self.weapon.crit_thresh
+		crit_threat = roll >= thresh
+		if crit_threat and (roll := dice(1, 20)) + mod >= eff_ac:
+			hits = True
+			crit = True
+		elif roll == 1:
 			hits = False
 		elif roll == 20:
 			hits = True
-			crit = dice(1, 20) + mod >= eff_ac
 		else:
 			hits = roll + mod >= eff_ac
 		if sneak_attack:
@@ -543,6 +579,7 @@ class Player(Entity):
 			else:
 				self.g.print_msg(f"You catch the {mon.name} completely unaware!")
 			hits = True
+			mon.energy -= 15
 		if mon.has_effect("Asleep"):
 			hits = True
 			mon.lose_effect("Asleep")
@@ -554,8 +591,12 @@ class Player(Entity):
 		else:
 			stat = self.attack_stat()
 			dam = self.base_damage_roll()
+			mult = 2
+			if self.weapon:
+				mult = self.weapon.crit_mult
 			if crit:
-				dam += self.base_damage_roll()
+				for _ in range(mult - 1):
+					dam += self.base_damage_roll()
 			if sneak_attack:
 				scale = 6
 				lev = self.level
@@ -569,9 +610,15 @@ class Player(Entity):
 					bonus = max(1, div_rand(bonus, 3))
 				dam += bonus
 			dam += div_rand(stat - 10, 2)
+			dam = max(dam, 1)
 			dam = mon.apply_armor(dam)
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
 			dam = max(dam, min_dam)
+			if mon.rubbery:
+				if self.weapon.dmg_type == "bludgeon":
+					dam = max(0, dam - random.randint(0, mon.HP))
+				elif self.weapon.dmg_type == "slash":
+					dam = mult_rand_frac(dam, random.randint(250, 750), 1000)
 			mon.HP -= dam
 			if dam > 0:
 				msg = f"You hit the {mon.name} for {dam} damage."
@@ -580,7 +627,9 @@ class Player(Entity):
 				self.g.print_msg(msg)
 				if crit:
 					self.g.print_msg("Critical!", "green")
-			else:
+			elif mon.rubbery and self.weapon.dmg_type == "bludgeon":
+				self.g.print_msg(f"You hit the {mon.name} but your attack bounces off of it.")
+			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
 			if mon.HP <= 0:
 				self.defeated_monster(mon)
@@ -595,10 +644,17 @@ class Player(Entity):
 		val = (mon.diff - 1)**0.85
 		gain = math.ceil(min(12 * 2**val, 60 * 1.5**val) - 6)
 		self.gain_exp(gain)
-		if mon.weapon and one_in(3):
-			weapon = mon.weapon()
-			self.g.print_msg(f"The {mon.name} drops its {weapon.name}!", "green")
-			self.g.spawn_item(weapon, (mon.x, mon.y))
+		if mon.weapon:
+			if isinstance(mon.weapon, list):
+				for w in mon.weapon:
+					if one_in(3):
+						weapon = w()
+						self.g.print_msg(f"The {mon.name} drops its {weapon.name}!", "green")
+						self.g.spawn_item(weapon, (mon.x, mon.y))
+			elif one_in(3):
+				weapon = mon.weapon()
+				self.g.print_msg(f"The {mon.name} drops its {weapon.name}!", "green")
+				self.g.spawn_item(weapon, (mon.x, mon.y))
 		if numbefore > 0 and numafter == 0:
 			if self.g.level == 1:
 				self.g.print_msg("Level complete! Move onto the stairs marked with a \">\", then press SPACE to go down to the next level.")

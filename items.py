@@ -37,7 +37,7 @@ class HealthPotion(Item):
 			g.print_msg("Your HP is already full!")
 			return False
 		else:	
-			recover = 10 + dice(2, 35)
+			recover = 10 + dice(2, 40)
 			g.print_msg("You recover some HP.")
 			player.HP = min(MAX_HP, player.HP + recover)
 			return True
@@ -285,6 +285,9 @@ class PlateArmor(Armor):
 		
 class Weapon(Item):
 	description = "This is a weapon that can be used to attack enemies."
+	crit_mult = 2
+	crit_thresh = 20
+	dmg_type = "default"
 	
 	def __init__(self, name, symbol, dmg, finesse=False, heavy=False, thrown=None):
 		super().__init__(name, symbol)
@@ -297,7 +300,7 @@ class Weapon(Item):
 		g = player.g
 		if self is player.weapon:
 			if g.yes_no(f"Put away your {self.name}?"):
-				player.weapon = None
+				player.weapon = UNARMED
 				player.energy -= player.get_speed()
 			else:
 				return False
@@ -314,56 +317,93 @@ class Weapon(Item):
 		
 	def on_hit(self, player, mon):
 		pass
+		
+class NullWeapon(Weapon):
+	description = "You are punching with your fists. You shouldn't see this in-game."
+	dmg_type = "bludgeon"
+	
+	def __init__(self):
+		super().__init__("unarmed", "f", (1, 2))
+		
+UNARMED = NullWeapon()
 
 class Club(Weapon):
+	dmg_type = "bludgeon"
 	
 	def __init__(self):
 		super().__init__("club", "!", (1, 4))
 		
 class Dagger(Weapon):
+	crit_thresh = 19
+	dmg_type = "pierce"
 	
 	def __init__(self):
 		super().__init__("dagger", "/", (1, 4), finesse=True, thrown=(4, 12))
 
 class Handaxe(Weapon):
+	crit_mult = 3
+	dmg_type = "slash"
 	
 	def __init__(self):
 		super().__init__("handaxe", "h", (1, 6), thrown=(4, 12))
 
 class Javelin(Weapon):
+	dmg_type = "bludgeon"
 	
 	def __init__(self):
 		super().__init__("javelin", "j", (1, 6), thrown=(6, 24))
 
 class Mace(Weapon):
+	dmg_type = "bludgeon"
 	
 	def __init__(self):
 		super().__init__("mace", "T", (1, 6))
 
 class Shortsword(Weapon):
+	crit_thresh = 19
+	dmg_type = "slash"
 	
 	def __init__(self):
 		super().__init__("shortsword", "i", (1, 6), finesse=True)
 
+class Longsword(Weapon):
+	crit_thresh = 19
+	dmg_type = "slash"
+	
+	def __init__(self):
+		super().__init__("longsword", "I", (1, 9))
+
 class Greatclub(Weapon):
+	dmg_type = "bludgeon"
 	
 	def __init__(self):
 		super().__init__("greatclub", "P", (1, 8))
 
 class Battleaxe(Weapon):
+	crit_mult = 3
+	dmg_type = "slash"
 	
 	def __init__(self):
 		super().__init__("battleaxe", "F", (1, 9))
 
+class Morningstar(Weapon):
+	dmg_type = "pierce"
+	
+	def __init__(self):
+		super().__init__("morningstar", "k", (1, 8))
+
 class Glaive(Weapon):
+	dmg_type = "slash"
 	
 	def __init__(self):
 		super().__init__("glaive", "L", (1, 10), heavy=True)
 		
 class Greataxe(Weapon):
+	crit_mult = 3
+	dmg_type = "slash"
 	
 	def __init__(self):
-		super().__init__("greataxe", "G", (2, 6), heavy=True)
+		super().__init__("greataxe", "G", (1, 12), heavy=True)
 
 class Wand(Item):
 	description = "This is a wand."

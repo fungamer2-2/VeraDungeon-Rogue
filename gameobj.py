@@ -209,6 +209,8 @@ class Game:
 					typ = rand_weighted(*types)
 					place_item(typ)	
 				elif x_in_y(60, 100):
+					if one_in(2):
+						place_item(HealthPotion)
 					break
 						
 			if self.level > dice(1, 6) and x_in_y(3, 8):
@@ -238,6 +240,9 @@ class Game:
 					(Javelin, 12),
 					(Mace, 12),
 					(Battleaxe, 6),
+					(Shortsword, 6),
+					(Longsword, 4),
+					(Morningstar, 4),
 					(Glaive, 3),
 					(Greataxe, 2),
 				]
@@ -396,11 +401,8 @@ class Game:
 		dex_string = f"DEX {self.player.DEX}"
 		screen.addstr(1, wd - len(dex_string), dex_string)
 		weapon = self.player.weapon
-		if weapon:
-			X, Y = weapon.dmg
-			w = f"{weapon.name} ({X}d{Y})"
-		else:
-			w = "unarmed (1d2)"
+		X, Y = weapon.dmg
+		w = f"{weapon.name} ({X}d{Y})"
 		screen.addstr(2, wd - len(w), w)
 		armor = self.player.armor
 		if armor:
