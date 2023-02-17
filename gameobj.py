@@ -196,21 +196,20 @@ class Game:
 						tile.items.append(typ())
 						break
 						
-		if not one_in(8):					
-			if not one_in(4):
-				types = [
-					(HealthPotion, 50),
-					(ResistPotion, 20),
-					(SpeedPotion, 20),
-					(InvisibilityPotion, 12),
-					(RejuvPotion, 3)
-				]
-				for _ in range(4):
-					if x_in_y(45, 100):
-						typ = rand_weighted(*types)
-						place_item(typ)	
-					elif x_in_y(60, 100):
-						break
+		if not one_in(8):	
+			types = [
+				(HealthPotion, 55),
+				(ResistPotion, 20),
+				(SpeedPotion, 20),
+				(InvisibilityPotion, 12),
+				(RejuvPotion, 3)
+			]
+			for _ in range(4):
+				if x_in_y(45, 100):
+					typ = rand_weighted(*types)
+					place_item(typ)	
+				elif x_in_y(60, 100):
+					break
 						
 			if self.level > dice(1, 6) and x_in_y(3, 8):
 				typ = rand_weighted(

@@ -81,7 +81,7 @@ class Monster(Entity):
 				newdiff = random.randint(newdiff, maxdiff)
 			choices = list(filter(lambda typ: newdiff == typ.diff, candidates))
 			if not choices:
-				return 
+				continue 
 			chosen = random.choice(choices)
 			if one_in(6):
 				return chosen
