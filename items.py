@@ -305,7 +305,7 @@ class Weapon(Item):
 			else:
 				return False
 		else:
-			if player.weapon:
+			if player.weapon is not UNARMED:
 				player.energy -= player.get_speed()
 				g.print_msg(f"You switch to your {self.name}.")
 			else:
