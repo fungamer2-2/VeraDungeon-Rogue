@@ -43,7 +43,6 @@ if __name__ == "__main__":
 			g.maybe_load_game()	
 		if not g.has_saved_game(): #Either it failed to load or the player decided to start a new game
 			g.generate_level()
-		assert g is g.player.g
 		for w in dup_warnings:
 			g.print_msg(f"WARNING: {w}", "yellow")
 		g.draw_board()

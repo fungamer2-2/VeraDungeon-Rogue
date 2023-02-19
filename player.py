@@ -71,7 +71,7 @@ class Player(Entity):
 		return int(speed)
 		
 	def max_exp(self):
-		return 50 + (self.level - 1) * 20
+		return 50 + math.ceil((self.level - 1)**1.2 * 20)
 		
 	def gain_exp(self, amount):
 		self.exp += amount

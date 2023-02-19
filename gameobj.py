@@ -314,24 +314,23 @@ class Game:
 				)
 				place_item(typ)
 				
-			if not one_in(3):
-				types = [
-					(Club, 60),
-					(Dagger, 30),
-					(Greatclub, 30),
-					(Handaxe, 12),
-					(Javelin, 12),
-					(Mace, 12),
-					(Battleaxe, 6),
-					(Shortsword, 6),
-					(Longsword, 4),
-					(Morningstar, 4),
-					(Glaive, 3),
-					(Greataxe, 2),
-				]
-				for _ in range(random.randint(2, 3)):
-					if not one_in(3):
-						place_item(rand_weighted(*types))
+			types = [
+				(Club, 60),
+				(Dagger, 30),
+				(Greatclub, 30),
+				(Handaxe, 12),
+				(Javelin, 12),
+				(Mace, 12),
+				(Battleaxe, 6),
+				(Shortsword, 6),
+				(Longsword, 4),
+				(Morningstar, 4),
+				(Glaive, 3),
+				(Greataxe, 2),
+			]
+			for _ in range(random.randint(2, 3)):
+				if not one_in(3):
+					place_item(rand_weighted(*types))
 				
 			if self.level > 1 and x_in_y(min(55 + self.level, 80), 100):
 				types = [LeatherArmor]

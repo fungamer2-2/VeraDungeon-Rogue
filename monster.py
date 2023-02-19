@@ -190,7 +190,7 @@ class Monster(Entity):
 		
 	def melee_attack_player(self, attack=None, force=False):
 		if attack is None:
-			attacks = list(filter(lambda a: a.can_use(self, self.g.player), self.attacks))
+			attacks = list(filter(lambda a: isinstance(a, list) or a.can_use(self, self.g.player), self.attacks))
 			if not attacks:
 				return
 			attack = random.choice(attacks)
@@ -363,7 +363,7 @@ class Monster(Entity):
 				random.shuffle(dirs)
 				dist = self.distance(player)
 				if dist <= 1 and one_in(4): #If we are already next to the player when frightened, there's a small chance we try to attack before running away
-					self.energy -= self.speed()
+					self.energy -= self.speed
 					self.do_melee_attack()
 				else:
 					for dx, dy in dirs:
@@ -373,9 +373,9 @@ class Monster(Entity):
 							self.move(dx, dy)
 							break
 					else:
-						if one_in(3): #If we are frightened and nowhere to run, try attacking
+						if x_in_y(2, 5): #If we are frightened and nowhere to run, try attacking
 							if dist <= 1:
-								self.energy -= self.speed()
+								self.energy -= self.speed
 								self.do_melee_attack()
 							elif self.ranged and self.should_use_ranged():
 								self.do_ranged_attack()
