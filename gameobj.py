@@ -1,5 +1,5 @@
 import random, curses, textwrap
-from os import get_terminal_size
+from os import get_terminal_size, path
 from itertools import islice
 from collections import deque
 
@@ -10,13 +10,21 @@ from effect import Effect
 from monster import Monster
 from items import *
 
+import pickle
 
 class Game:
-		
+	_INST = None
+	
+	def __new__(cls):
+		if cls._INST:
+			return cls._INST
+		obj = object.__new__(cls)
+		cls._INST = obj
+		return obj
+	
 	def __init__(self):
 		self.screen = curses.initscr()
 		curses.start_color()
-		
 		curses.init_pair(1, curses.COLOR_RED, 0)
 		curses.init_pair(2, curses.COLOR_GREEN, 0)
 		curses.init_pair(3, curses.COLOR_YELLOW, 0)
@@ -34,8 +42,37 @@ class Game:
 		self.projectile = None
 		self.select = None
 		self.level = 1
+		self.revealed = []
 		types = Effect.__subclasses__()
 		self.effect_types = {t.name:t for t in types}
+	
+	def __getstate__(self):
+		d = self.__dict__.copy()
+		del d["screen"]
+		return d
+	
+	def __setstate__(self, state):
+		self.__dict__.update(state)
+		self.screen = curses.initscr()
+		
+	def load_game(self):
+		try:
+			obj = pickle.load(open("save.pickle", "rb"))
+			self.__dict__.update(obj.__dict__)
+		except:
+			self.print_msg("Unable to load saved game.", "yellow")
+			self.delete_saved_game()
+			
+	def save_game(self):
+		pickle.dump(self, open("save.pickle", "wb"))
+		
+	def has_saved_game(self):
+		return path.exists("save.pickle")
+	
+	def delete_saved_game(self):
+		if self.has_saved_game():
+			import os
+			os.remove("save.pickle")
 	
 	def help_menu(self):
 		size = get_terminal_size()
@@ -58,6 +95,7 @@ class Game:
 		add_text("? - brings up this menu again")
 		add_text(". - wait a turn")
 		add_text("j - view item descriptions at this tile")
+		add_text("t - throw a throwable item")
 		add_text("Q - quit the game")
 		add_line()
 		add_text("Press enter to continue")
@@ -67,6 +105,51 @@ class Game:
 		screen.refresh()
 		while screen.getch() != 10: pass
 		self.draw_board()
+	
+	def maybe_load_game(self):
+		if not self.has_saved_game():
+			return
+		size = get_terminal_size()
+		termwidth = size.columns
+		msg = []
+		def add_text(txt=""):
+			nonlocal msg
+			txt = str(txt)
+			msg += textwrap.wrap(txt, termwidth)
+		def add_line():
+			msg.append("")
+		
+		screen = self.screen
+		
+		while True:
+			msg.clear()
+			add_text("Continue Saved Game")
+			add_line()
+			add_text("You have a saved game.")
+			add_line()
+			add_text("Press 1 to load saved game.")
+			add_text("Press 2 to start a new game.")
+			screen.clear()
+			screen.addstr(0, 0, "\n".join(msg))
+			screen.refresh()
+			while (user := chr(screen.getch())) not in ["1", "2"]: pass
+			if user == "1":
+				self.load_game()
+				break
+			else:
+				msg.clear()
+				add_text("Really start a new game? All progress will be lost!")
+				add_line()
+				add_text("Enter Y or N")
+				screen.clear()
+				screen.addstr(0, 0, "\n".join(msg))
+				screen.refresh()
+				while (newgame := chr(screen.getch()).upper()) not in ["Y", "N"]: pass
+				if newgame == "Y":
+					self.delete_saved_game()
+					break
+				
+			self.draw_board()
 		
 	def game_over(self):
 		size = get_terminal_size()
@@ -267,7 +350,8 @@ class Game:
 						num += 1
 				for _ in range(num):
 					place_item(random.choice(types))
-			
+		
+		self.revealed.clear()
 		self.draw_board()
 		self.refresh_cache()
 	
@@ -319,42 +403,42 @@ class Game:
 		screen.addstr(0, 0, f"HP {p.HP}/{p.get_max_hp()} | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
 		fov = self.player.fov
 		for point in fov:
-			board.get(*point).revealed = True
+			tile = board.get(*point)
+			if not tile.revealed:
+				tile.revealed = True
+				self.revealed.append(point)
 		offset = 1
-		for row in range(board.rows):
-			for col in range(board.cols):
-				tile = board.get(col, row)
-				if not tile.revealed:
-					continue
-				s = tile.symbol
-				color = 0
-				if (col, row) == (self.player.x, self.player.y):
-					s = "P"
-					if not self.player.has_effect("Invisible"):
-						color = curses.A_REVERSE
-					else:
-						color = curses.color_pair(4)
-				elif tile.items:
-					item = tile.items[-1]
-					s = item.symbol
-					color = curses.color_pair(2)
-					if isinstance(item, (Scroll, Armor)):
-						color = curses.color_pair(4) | curses.A_BOLD
-					elif isinstance(item, Wand):
-						color = curses.color_pair(5) | curses.A_BOLD
-					elif isinstance(item, Weapon):
-						color = curses.color_pair(5) | curses.A_REVERSE
-				elif tile.symbol == " ":
-					if (col, row) in fov:
-						s = "."
-					if self.projectile:
-						x, y = self.projectile
-						if (col, row) == (x, y):
-							s = "*"
-				try:
-					screen.addstr(row + offset, col, s, color)
-				except curses.error:
-					pass
+		for col, row in self.revealed:
+			tile = board.get(col, row)
+			s = tile.symbol
+			color = 0
+			if (col, row) == (self.player.x, self.player.y):
+				s = "P"
+				if not self.player.has_effect("Invisible"):
+					color = curses.A_REVERSE
+				else:
+					color = curses.color_pair(4)
+			elif tile.items:
+				item = tile.items[-1]
+				s = item.symbol
+				color = curses.color_pair(2)
+				if isinstance(item, (Scroll, Armor)):
+					color = curses.color_pair(4) | curses.A_BOLD
+				elif isinstance(item, Wand):
+					color = curses.color_pair(5) | curses.A_BOLD
+				elif isinstance(item, Weapon):
+					color = curses.color_pair(5) | curses.A_REVERSE
+			elif tile.symbol == " ":
+				if (col, row) in fov:
+					s = "."
+				if self.projectile:
+					x, y = self.projectile
+					if (col, row) == (x, y):
+						s = "*"
+			try:
+				screen.addstr(row + offset, col, s, color)
+			except curses.error:
+				pass
 		monpos = set()
 		for m in self.monsters:
 			x, y = m.x, m.y
@@ -444,4 +528,3 @@ class Game:
 					self.monsters.remove(m)
 				if self.player.dead:
 					return
-					

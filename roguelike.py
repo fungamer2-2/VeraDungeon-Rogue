@@ -37,12 +37,16 @@ from monster import dup_warnings
 
 if __name__ == "__main__":		
 	g = Game()
-	
 	try:
 		g.print_msg("Press \"?\" if you want to view the controls.")
+		if g.has_saved_game():
+			g.maybe_load_game()	
+		if not g.has_saved_game(): #Either it failed to load or the player decided to start a new game
+			g.generate_level()
+		assert g is g.player.g
 		for w in dup_warnings:
 			g.print_msg(f"WARNING: {w}", "yellow")
-		g.generate_level()
+		g.draw_board()
 		while not g.player.dead:
 			refresh = False
 			lastenergy = g.player.energy
@@ -244,10 +248,14 @@ if __name__ == "__main__":
 			moved = g.player.energy < lastenergy
 			if moved:
 				g.do_turn()
-				if not g.player.resting or g.player.ticks % 10 == 0:
+				busy = g.player.resting or g.player.activity
+				if not busy or g.player.ticks % 10 == 0:
 					g.draw_board()
+				if not busy or g.player.ticks % 35 == 0:
+					g.save_game()
 			elif refresh:
 				g.draw_board()
+		g.delete_saved_game()
 		g.input("Press enter to continue...")
 		g.game_over()
 	except Exception as e:

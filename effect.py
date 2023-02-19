@@ -1,3 +1,5 @@
+import random
+
 class Effect:
 	name = "Generic Effect"
 	

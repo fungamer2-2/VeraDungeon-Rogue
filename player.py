@@ -114,12 +114,12 @@ class Player(Entity):
 	def MAX_HP(self):	
 		return 100 + (self.level - 1)*20
 	
-	def interrupt(self):
+	def interrupt(self, force=False):
 		if self.resting:
 			self.g.print_msg("Your rest was interrupted.", "yellow")
 			self.resting = False
 		elif self.activity:
-			if not self.g.yes_no(f"Continue {self.activity.name}?"):
+			if force or not self.g.yes_no(f"Continue {self.activity.name}?"):
 				self.g.print_msg(f"You stop {self.activity.name}.")
 				self.activity = None
 	
@@ -304,7 +304,6 @@ class Player(Entity):
 	def knockback(self, dx, dy):
 		if dx == 0 and dy == 0:
 			return
-		self.interrupt()
 		board = self.g.board
 		newpos = self.x+dx, self.y+dy
 		oldpos = (self.x, self.y)
@@ -318,6 +317,7 @@ class Player(Entity):
 				return
 			if dist == 0:
 				self.g.print_msg("You're knocked back!", "red")
+				self.interrupt(force=True)
 			dist += 1
 			self.move_to(x, y)
 			self.g.draw_board()
@@ -373,7 +373,7 @@ class Player(Entity):
 			pen += 4
 		avg_pen = pen
 		if num_tiles > short:
-			scale = 10
+			scale = 8
 			g.print_msg(f"Ranged accuracy is reduced beyond {short} tiles.", "yellow")
 			pen += mult_rand_frac(num_tiles - short, scale, long - short) 
 			avg_pen += scale*(num_tiles-short)/(long-short)
@@ -416,13 +416,13 @@ class Player(Entity):
 				damage += item.roll_dmg()
 			damage += calc_mod(self.attack_stat())
 			damage = target.apply_armor(damage)
-			if mon.rubbery:
+			if target.rubbery:
 				if self.weapon.dmg_type == "bludgeon":
 					damage = max(0, damage - random.randint(0, mon.HP))
 				elif self.weapon.dmg_type == "slash":
 					damage = mult_rand_frac(damage, random.randint(250, 750), 1000)
 			if damage <= 0:
-				if mon.rubbery and self.weapon.dmg_type == "bludgeon":
+				if target.rubbery and self.weapon.dmg_type == "bludgeon":
 					g.print_msg(f"The {item.name} harmlessly bounces off the {target.name}.")
 				else:
 					g.print_msg(f"The {item.name} hits the {target.name} but does no damage.")
@@ -629,6 +629,8 @@ class Player(Entity):
 					self.g.print_msg("Critical!", "green")
 			elif mon.rubbery and self.weapon.dmg_type == "bludgeon":
 				self.g.print_msg(f"You hit the {mon.name} but your attack bounces off of it.")
+				if one_in(12):
+					self.g.print_msg("This type of damage seems to be highly ineffective against the {mon.name}. You may need to use something sharper.")
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
 			if mon.HP <= 0:

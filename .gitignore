@@ -1,3 +1,4 @@
 *.log
 *.pyc
+*.pickle
 __pycache__/
