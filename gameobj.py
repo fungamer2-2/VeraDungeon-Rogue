@@ -12,6 +12,42 @@ from items import *
 
 import pickle
 
+class GameTextMenu:
+	
+	def __init__(self, g):
+		self.screen = g.screen
+		self.g = g
+		size = get_terminal_size()
+		self.termwidth = size.columns
+		self.msg = []
+		
+	def add_text(self):
+		txt = str(txt)
+		self.msg.extend(textwrap.wrap(txt, termwidth))
+		
+	def add_line():
+		self.msg.append("")
+		
+	def clear_msg(self):
+		self.msg.clear()
+	
+	def display(self):
+		self.screen.clear()
+		self.screen.addstr(0, 0, "\n".join(msg))
+		self.screen.refresh()
+		
+	def close(self):
+		self.g.draw_board()
+		
+	def getch(self):
+		return self.screen.getch()
+		
+	def getchar(self):
+		return chr(self.getch())
+		
+	def wait_for_enter(self):
+		while self.getch() != 10: pass
+
 class Game:
 	_INST = None
 	
@@ -75,36 +111,24 @@ class Game:
 			os.remove("save.pickle")
 	
 	def help_menu(self):
-		size = get_terminal_size()
-		termwidth = size.columns
-		msg = []
-		def add_text(txt=""):
-			nonlocal msg
-			txt = str(txt)
-			msg += textwrap.wrap(txt, termwidth)
-		def add_line():
-			msg.append("")
-			
-		add_text("Use the wasd keys to move")
-		add_text("Use the q and z keys to scroll the message log")
-		add_text("f - view info about monsters currently in view")
-		add_text("r - rest until HP is recovered")
-		add_text("p - pick up item")
-		add_text("u - use item")
-		add_text("space - go down to next level (when standing on a \">\" symbol)")
-		add_text("? - brings up this menu again")
-		add_text(". - wait a turn")
-		add_text("j - view item descriptions at this tile")
-		add_text("t - throw a throwable item")
-		add_text("Q - quit the game")
-		add_line()
-		add_text("Press enter to continue")
-		screen = self.screen
-		screen.clear()
-		screen.addstr(0, 0, "\n".join(msg))
-		screen.refresh()
-		while screen.getch() != 10: pass
-		self.draw_board()
+		menu = GameMenu()
+		menu.add_text("Use the wasd keys to move")
+		menu.add_text("Use the q and z keys to scroll the message log")
+		menu.add_text("f - view info about monsters currently in view")
+		menu.add_text("r - rest until HP is recovered")
+		menu.add_text("p - pick up item")
+		menu.add_text("u - use item")
+		menu.add_text("space - go down to next level (when standing on a \">\" symbol)")
+		menu.add_text("? - brings up this menu again")
+		menu.add_text(". - wait a turn")
+		menu.add_text("j - view item descriptions at this tile")
+		menu.add_text("t - throw a throwable item")
+		menu.add_text("Q - quit the game")
+		menu.add_text()
+		menu.add_text("Press enter to continue")
+		menu.display()
+		menu.wait_for_enter()
+		menu.close()
 	
 	def maybe_load_game(self):
 		if not self.has_saved_game():
@@ -149,34 +173,22 @@ class Game:
 					self.delete_saved_game()
 					break
 				
-			self.draw_board()
+		self.draw_board()
 		
 	def game_over(self):
-		size = get_terminal_size()
-		termwidth = size.columns
-		msg = []
-		def add_text(txt=""):
-			nonlocal msg
-			txt = str(txt)
-			msg += textwrap.wrap(txt, termwidth)
-		def add_line():
-			msg.append("")
-			
+		menu = GameMenu()				
 		p = self.player
-		add_text("GAME OVER")
-		add_line()
-		add_text(f"You reached Dungeon Level {self.level}")
-		add_text(f"You attained XP level {p.level}")
-		add_line()
-		add_text(f"Your final stats were:")
-		add_text(f"STR {p.STR}, DEX {p.DEX}")
-		add_line()
-		add_text("Press enter to quit")
-		screen = self.screen
-		screen.clear()
-		screen.addstr(0, 0, "\n".join(msg))
-		screen.refresh()
-		while screen.getch() != 10: pass
+		menu.add_text("GAME OVER")
+		menu.add_line()
+		menu.add_text(f"You reached Dungeon Level {self.level}")
+		menu.add_text(f"You attained XP level {p.level}")
+		menu.add_line()
+		menu.add_text(f"Your final stats were:")
+		menu.add_text(f"STR {p.STR}, DEX {p.DEX}")
+		menu.add_line()
+		menu.add_text("Press enter to quit")
+		menu.display()
+		menu.wait_for_enter()
 			
 	def set_projectile_pos(self, x, y):
 		self.projectile = (x, y)
@@ -253,7 +265,10 @@ class Game:
 		for _ in range(num):
 			pool = []
 			for t in monsters:
-				if self.level > int((t.min_level - 1)*random.uniform(1, 1.7)):
+				minlevel = t.min_level
+				thresh =  int((minlevel - 1)*1.7)
+				thresh = min(thresh, minlevel+10)
+				if self.level > random.randint(minlevel, thresh):
 					pool.append(t)
 			assert len(pool) > 0
 			typ = random.choice(pool)	

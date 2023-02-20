@@ -171,7 +171,7 @@ class Monster(Entity):
 	def should_use_ranged(self):
 		board = self.g.board
 		player = self.g.player
-		if not board.is_clear_path((self.x, self.y), (player.x, player.y)):
+		if not self.has_line_of_fire():
 			return False
 		return x_in_y(2, 5)
 		
@@ -333,10 +333,20 @@ class Monster(Entity):
 	def apply_armor(self, dam):
 		return max(0, dam - random.randint(0, mult_rand_frac(self.armor, 3, 2)))
 		
+	def has_line_of_fire(self):
+		player = self.g.player
+		return self.g.board.is_clear_path((self.x, self.y), (player.x, player.y))
+		
 	def actions(self):
 		if self.has_effect("Asleep") or self.has_effect("Stunned") or self.has_effect("Paralyzed"):
 			self.energy = 0
 			return
+		mon_typ = self.__class__.__name__
+		if mon_typ == "Troll" and self.HP < self.MAX_HP:
+			regen = 2 + one_in(3)
+			self.HP = min(self.MAX_HP, self.HP + regen)
+			if one_in(5):
+				self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} slowly regenerates.")
 		board = self.g.board
 		player = self.g.player
 		confused = self.has_effect("Confused") and not one_in(4)
