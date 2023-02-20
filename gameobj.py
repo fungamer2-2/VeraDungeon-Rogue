@@ -265,8 +265,8 @@ class Game:
 		for _ in range(num):
 			pool = []
 			for t in monsters:
-				minlevel = t.min_level
-				thresh =  int((minlevel - 1)*1.7)
+				minlevel = t.min_level-1
+				thresh =  int(minlevel*1.7)
 				thresh = min(thresh, minlevel+10)
 				if self.level > random.randint(minlevel, thresh):
 					pool.append(t)
