@@ -12,17 +12,7 @@ Current version: 0.4 <br />
 
 - Download `roguelike.py`, then run the command `python3 roguelike.py`
 
-### Controls<br />
-`wasd` keys to move around<br />
-`q` and `z` keys to scroll the message log<br />
-`f` - view info of monster types in view<br />
-`u` - use an item from inventory (just type in the name of the item)<br />
-`r` - rest until HP full<br />
-`p` - pick up an item<br />
-`SPACE` - go down to next level (when standing on a ">" symbol)<br />
-`j` - view description of items at this location<br />
-`.` - wait a turn<br />
-`?` - brings up the help menu for the controls
+The game controls can be found in the game.
 
 ### Gameplay
 Your goal is to fight the monsters in a randomly generated dungeon. Move into a monster to attack. <br />
