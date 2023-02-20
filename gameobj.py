@@ -111,7 +111,7 @@ class Game:
 			os.remove("save.pickle")
 	
 	def help_menu(self):
-		menu = GameMenu()
+		menu = GameTextMenu()
 		menu.add_text("Use the wasd keys to move")
 		menu.add_text("Use the q and z keys to scroll the message log")
 		menu.add_text("f - view info about monsters currently in view")
@@ -176,7 +176,7 @@ class Game:
 		self.draw_board()
 		
 	def game_over(self):
-		menu = GameMenu()				
+		menu = GameTextMenu()				
 		p = self.player
 		menu.add_text("GAME OVER")
 		menu.add_line()
