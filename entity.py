@@ -139,6 +139,10 @@ class Entity:
 					break
 			else:
 				 return False
+		self.place_at(x, y)
+		return True
+		
+	def place_at(self, x, y):
 		old = (self.x, self.y)
 		self.x = x
 		self.y = y
@@ -147,7 +151,11 @@ class Entity:
 		else:
 			self.placed = True
 			self.g.board.set_cache(x, y)
-		return True
+		
+	def swap_with(self, other):
+		tmp = (self.x, self.y)
+		self.x, self.y = other.x, other.y
+		other.x, other.y = tmp
 		
 	def move_to(self, x, y):
 		board = self.g.board

@@ -182,6 +182,40 @@ class TeleportScroll(Scroll):
 		player.energy -= player.get_speed()
 		return True
 		
+class SummonScroll(Scroll):
+	description = "Reading this scroll will summon friendly creatures."
+	
+	def __init__(self):
+		super().__init__("scroll of summoning")
+	
+	def use(self, player):
+		g = player.g
+		g.print_msg("You read a scroll of summoning. The scroll crumbles to dust.")
+
+		points = list(player.fov)
+		points.remove((player.x, player.y))
+		types = list(filter(lambda t: t.diff <= 8 and g.level >= t.min_level, g.mon_types))
+		num = random.randint(2, 3)
+		random.shuffle(points)
+		points.sort(key=lambda p: abs(p[0] - player.x) + abs(p[1] - player.y))
+		ind = 0
+		while ind < len(points) and num > 0:
+			typ = random.choice(types)
+			duration = random.randint(50, 80)
+			pos = points[ind]
+			if g.monster_at(*pos):
+				ind += 1
+				continue
+			m = typ(g)
+			m.ranged = False
+			m.place_at(*pos)
+			m.summon_timer = duration
+			g.monsters.append(m)
+			ind += random.randint(1, 2)
+			num -= 1
+		return True
+		
+		
 class Activity:
 	
 	def __init__(self, name, time):
@@ -458,7 +492,8 @@ class Wand(Item):
 			for x, y in line:
 				t = g.get_monster(x, y)
 				if t is not None:
-					self.wand_effect(player, t)
+					if not target.despawn_summon():
+						self.wand_effect(player, t)
 					t.on_alerted()
 				g.blast.add((x, y))
 				g.draw_board()
@@ -477,7 +512,8 @@ class Wand(Item):
 						target = t
 						break
 			g.clear_projectile()
-			self.wand_effect(player, target)
+			if not target.despawn_summon():
+				self.wand_effect(player, target)
 		self.charges -= 1
 		player.did_attack = True
 		alert = 2 + (self.efftype == "ray") #Ray effects that affect all monsters in a line are much more likely to alert monsters

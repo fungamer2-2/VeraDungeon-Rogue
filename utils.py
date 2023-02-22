@@ -57,6 +57,9 @@ def one_in(x):
 
 def x_in_y(x, y):
 	return random.randint(1, y) <= x	
+	
+def binomial(num, x, y=100):
+	return sum(1 for _ in range(num) if x_in_y(x, y))
 			
 def display_prob(perc):
 	if perc <= 0:

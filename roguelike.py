@@ -33,7 +33,7 @@ from board import *
 from gameobj import *					
 from entity import *		
 from items import *
-from monster import dup_warnings
+from monster import *
 
 if __name__ == "__main__":		
 	g = Game()
@@ -43,9 +43,13 @@ if __name__ == "__main__":
 			g.maybe_load_game()	
 		if not g.has_saved_game(): #Either it failed to load or the player decided to start a new game
 			g.generate_level()
+			item = SummonScroll
+			for _ in range(100):
+				g.player.inventory.append(item())
 		for w in dup_warnings:
 			g.print_msg(f"WARNING: {w}", "yellow")
 		g.draw_board()
+		g.refresh_cache()
 		while not g.player.dead:
 			refresh = False
 			lastenergy = g.player.energy
@@ -215,10 +219,15 @@ if __name__ == "__main__":
 						refresh = True
 				elif char == " ": #Go down to next level
 					if g.board.get(g.player.x, g.player.y).stair:
+						was_any_allies = any(m.summon_timer is not None for m in g.monsters)
 						time.sleep(0.3)
 						g.generate_level()
 						g.level += 1
-						g.print_msg("You descend deeper into the dungeon.")
+						if was_any_allies:
+							g.print_msg("You descend deeper into the dungeon, leaving your summoned allies behind.")
+						else:
+							g.print_msg("You descend deeper into the dungeon.")
+						
 						for m in g.player.monsters_in_fov():
 							if x_in_y(3, g.level):
 								continue

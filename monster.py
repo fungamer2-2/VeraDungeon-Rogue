@@ -52,15 +52,18 @@ class Monster(Entity):
 		self.is_aware = False
 		self.check_timer = 1
 		self.effects = {}
+		self.summon_timer = None
 		self.energy = -random.randrange(self.speed)
+		self.target = None
+		
+	def is_friendly(self):
+		#TODO: Charmed condition
+		return self.summon_timer is not None
 		
 	def despawn(self):
 		self.HP = 0
 		self.energy = -self.get_speed()
-		try:
-			self.g.monsters.remove(self)
-		except ValueError:
-			pass
+		self.g.remove_monster(self)
 		
 	def __init_subclass__(cls):
 		if cls.symbol in symbols:
@@ -146,6 +149,25 @@ class Monster(Entity):
 		if name in self.effects:
 			del self.effects[name]
 			
+	def despawn_summon(self):
+		if self.summon_timer is None:
+			return False
+		self.despawn()
+		self.g.print_msg_if_sees((self.x, self.y), "Your summoned ally disappears!")
+		return True
+		
+	def take_damage(self, dam, source=None):
+		self.HP -= dam
+		if source is self.g.player and self.despawn_summon():
+			return
+		if self.HP <= 0:
+			self.despawn()
+			if source is not None:
+				if source is self.g.player or source.is_friendly():
+					self.g.player.defeated_monster(self)
+				else:
+					self.despawn_summon()
+					
 	def do_turn(self):
 		self.energy += self.get_speed()
 		while self.energy > 0:
@@ -156,7 +178,14 @@ class Monster(Entity):
 		self.tick_effects()
 			
 	def tick_effects(self):
-		self.track_timer -= 1
+		if self.summon_timer is not None and self.summon_timer > 0:
+			self.summon_timer -= 1
+			if self.summon_timer == 0:
+				self.despawn()
+				self.g.print_msg_if_sees((self.x, self.y), "Your summoned ally disappears!")
+				return
+		if self.track_timer > 0:
+			self.track_timer -= 1
 		for e in list(self.effects.keys()):
 			self.effects[e] -= 1
 			if self.effects[e] <= 0:
@@ -175,20 +204,21 @@ class Monster(Entity):
 			return False
 		return x_in_y(2, 5)
 		
-	def modify_damage(self, damage):
+	def modify_damage(self, target, damage):
 		player = self.g.player
-		armor = player.armor
+		armor = target.armor
 		if armor:
-			damage -= random.randint(1, armor.protect*4) #Armor can reduce damage
+			if target is player:
+				damage -= random.randint(1, armor.protect*4) #Armor can reduce damage
+			else:
+				damage -= random.randint(0, mult_rand_frac(armor, 3, 2))
 			if damage <= 0:
 				return 0
-		if player.has_effect("Resistance"):
+		if target is player and player.has_effect("Resistance"):
 			damage = div_rand(damage, 2)
-			if one_in(2): #Don't tell them every time
-				self.g.print_msg("Your resistance blocks some of the damage.")
 		return max(damage, 0)
 		
-	def melee_attack_player(self, attack=None, force=False):
+	def melee_attack(self, target=None, attack=None, force=False):
 		if attack is None:
 			attacks = list(filter(lambda a: isinstance(a, list) or a.can_use(self, self.g.player), self.attacks))
 			if not attacks:
@@ -198,14 +228,21 @@ class Monster(Entity):
 				c = list(filter(lambda a: a.can_use(self, self.g.player), attack))
 				attack = random.choice(c)
 		player = self.g.player
+		if target is None:
+			target = player
 		roll = dice(1, 20)
 		disadv = 0
-		disadv += player.has_effect("Invisible")
-		disadv += self.has_effect("Frightened")
+		disadv += target.has_effect("Invisible")
+		disadv += self.has_effect("Frightened") and self.sees_player()
 		for _ in range(disadv):
 			roll = min(roll, dice(1, 20))
-		ac_mod = player.get_ac_bonus()
-		AC = 10 + ac_mod
+		if target is player:
+			ac_mod = player.get_ac_bonus()
+			AC = 10 + ac_mod
+		else:
+			AC = target.AC
+			mon = target
+			mon.target = self
 		bonus = attack.to_hit
 		total = roll + bonus
 		if roll == 1:
@@ -213,67 +250,84 @@ class Monster(Entity):
 		elif roll == 20:
 			hits = True
 		else:
-			hits = player.dead or total >= AC
+			hits = total >= AC
+		
 		if not hits:
-			if roll == 1 or total < AC - ac_mod:
-				self.g.print_msg(f"The {self.name}'s attack misses you.")
+			if target is not player or roll == 1 or total < AC - ac_mod:
+				the_target = "you" if target is player else f"the {target.name}"
+				self.g.print_msg_if_sees((target.x, target.y), f"The {self.name}'s attack misses {the_target}.")
 			else:
 				self.g.print_msg(f"You evade the {self.name}'s attack.")
 		else:
-			damage = self.modify_damage(dice(*attack.dmg))
+			damage = self.modify_damage(target, dice(*attack.dmg))
+			the_target = "you" if target is player else f"the {target.name}"
 			if damage:
-				self.g.print_msg(attack.msg.format(self.name) + f" for {damage} damage!", "red")
-				player.take_damage(damage)
-				attack.on_hit(player, self, damage)
+				self.g.print_msg_if_sees((target.x, target.y), attack.msg.format(self.name, the_target) + f" for {damage} damage!", "red" if target is player else "white")
+				if target is player:
+					target.take_damage(damage)
+				else:
+					target.take_damage(damage, source=self)
+				if target is not player: #TODO: Make on_hit work for monsters
+					attack.on_hit(player, self, damage)
 			else:
-				self.g.print_msg(attack.msg.format(self.name) + " but does no damage.")
+				self.g.print_msg_if_sees((target.x, target.y), attack.msg.format(self.name, the_target) + " but does no damage.")
 			
-	def do_melee_attack(self):
+	def do_melee_attack(self, target=None):
+		player = self.g.player
+		if target is not None:
+			target = player
 		for att in self.attacks:
 			if isinstance(att, list):
 				attacks = list(filter(lambda a: a.can_use(self, self.g.player), att))
 				if not attacks:
 					continue
 				att = random.choice(attacks)
-			if att.can_use(self, self.g.player):
-				self.melee_attack_player(att)
+			if att.can_use(self, player):
+				self.melee_attack(player, att)
 		
-	def do_ranged_attack(self):
+	def do_ranged_attack(self, target=None):
 		if not self.ranged:
 			return
 		player = self.g.player
 		board = self.g.board
-		self.g.print_msg(f"The {self.name} makes a ranged attack at you.")
-		for point in board.line_between((self.x, self.y), (player.x, player.y), skipfirst=True, skiplast=True):
+		if target is None:
+			target = player
+		the_target = "you" if target is player else f"the {target.name}"
+		self.g.print_msg(f"The {self.name} makes a ranged attack at {the_target}.")
+		for point in board.line_between((self.x, self.y), (target.x, target.y), skipfirst=True, skiplast=True):
 			self.g.set_projectile_pos(*point)
 			self.g.draw_board()
 			time.sleep(0.08)
 		self.g.clear_projectile()
 		roll = dice(1, 20)
-		if player.has_effect("Invisible") or self.has_effect("Frightened"): #The player is harder to hit when invisible
+		if (target is player and player.has_effect("Invisible")) or self.has_effect("Frightened"): #The player is harder to hit when invisible
 			roll = min(roll, dice(1, 20))
 		bonus = self.to_hit
-		dodge_mod = player.get_ac_bonus()
-		AC = 10 + dodge_mod
+		if target is player:
+			dodge_mod = player.get_ac_bonus()
+			AC = 10 + dodge_mod
+		else:
+			AC = target.AC
 		total = roll + self.to_hit
 		if roll == 1:
 			hits = False
 		elif roll == 20:
 			hits = True
 		else:
-			hits = player.dead or total >= AC
+			hits = total >= AC
 		if not hits:
-			if roll > 1 and total >= AC - dodge_mod:
+			if target is player and roll > 1 and total >= AC - dodge_mod:
 				self.g.print_msg("You dodge the projectile.")
 			else:
-				self.g.print_msg("The projectile misses you.")
+				self.g.print_msg(f"The projectile misses {the_target}.")
 		else:
-			damage = self.modify_damage(dice(*self.ranged_dam))
+			damage = self.modify_damage(target, dice(*self.ranged_dam))
 			if damage:
-				self.g.print_msg(f"You are hit for {damage} damage!", "red")
+				the_target_is = "You are" if target is player else "The {target.name} is"
+				self.g.print_msg(f"{the_target_is} hit for {damage} damage!", "red" if target is player else "white")
 				player.take_damage(damage)
 			else:
-				self.g.print_msg("The projectile hits you but does no damage.")
+				self.g.print_msg(f"The projectile hits {the_target} but does no damage.")
 		self.energy -= self.get_speed()
 			
 	def sees_player(self):
@@ -318,9 +372,11 @@ class Monster(Entity):
 	def reset_track_timer(self):
 		self.track_timer = random.randint(25, 65)
 				
-	def on_alerted(self):
+	def on_alerted(self, target=None):
 		player = self.g.player
 		self.is_aware = True
+		if target is not None and target is not playet:
+			self.target = None
 		self.last_seen = (player.x, player.y)
 		self.reset_track_timer()
 				
@@ -329,6 +385,7 @@ class Monster(Entity):
 		self.track_timer = 0
 		self.is_aware = False
 		self.dir = None
+		self.target = None
 		
 	def apply_armor(self, dam):
 		return max(0, dam - random.randint(0, mult_rand_frac(self.armor, 3, 2)))
@@ -337,10 +394,24 @@ class Monster(Entity):
 		player = self.g.player
 		return self.g.board.is_clear_path((self.x, self.y), (player.x, player.y))
 		
+	def sees_target(self):
+		if self.target is self.g.player:
+			return self.sees_player()
+		if not self.target:
+			return False
+		target = self.target
+		if self.g.board.line_of_sight((self.x, self.y), (target.x, target.y)):
+			return True
+		return self.g.board.line_of_sight((target.x, target.y), (self.x, self.y))
+	
 	def actions(self):
 		if self.has_effect("Asleep") or self.has_effect("Stunned") or self.has_effect("Paralyzed"):
 			self.energy = 0
 			return
+		if self.target is None:
+			self.target = self.g.player
+		if self.is_friendly():
+			self.is_aware = True
 		mon_typ = self.__class__.__name__
 		if mon_typ == "Troll" and self.HP < self.MAX_HP:
 			regen = 2 + one_in(3)
@@ -349,6 +420,7 @@ class Monster(Entity):
 				self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} slowly regenerates.")
 		board = self.g.board
 		player = self.g.player
+		target = self.target
 		confused = self.has_effect("Confused") and not one_in(4)
 		guessplayer = False
 		if self.is_aware and player.has_effect("Invisible"):
@@ -367,7 +439,7 @@ class Monster(Entity):
 						self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} bumps into the {obstacle}.")
 					self.energy -= div_rand(self.get_speed(), 2) #We bumped into something while confused
 			self.energy = min(self.energy, 0)
-		elif self.has_effect("Frightened"):
+		elif not self.is_friendly() and self.has_effect("Frightened"):
 			if self.sees_player():
 				dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
 				random.shuffle(dirs)
@@ -387,19 +459,44 @@ class Monster(Entity):
 							if dist <= 1:
 								self.energy -= self.speed
 								self.do_melee_attack()
-							elif self.ranged and self.should_use_ranged():
+							elif self.ranged and target is player and self.should_use_ranged():
 								self.do_ranged_attack()
 			elif one_in(2) and dice(1, 20) + calc_mod(self.WIS) >= 15:
 				self.lose_effect("Frightened")
-		elif self.is_aware and (self.sees_player() or guessplayer):
-			xdist = player.x - self.x
-			ydist = player.y - self.y
-			self.last_seen = (player.x, player.y)
+		elif self.is_friendly():
+			can_see = (self.x, self.y) in player.fov
+			if can_see and (mons := list(player.monsters_in_fov())):
+				dist = 999
+				closest = None
+				for m in mons:
+					if not board.is_clear_path((self.x, self.y), (m.x, m.y)):
+						if not board.is_clear_path((m.x, m.y), (self.x, self.y)):
+							continue
+					if (d := self.distance(m)) < dist:
+						dist = d
+						closest = m
+				if dist <= 1:
+					self.melee_attack(m)
+				else:
+					self.path_towards(m.x, m.y)	
+			if self.distance(player) > 4 or not can_see:
+				self.path_towards(player.x, player.y)
+			elif one_in(6):
+				dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
+				random.shuffle(dirs)
+				for d in dirs:
+					if self.move(*d):
+						self.dir = d
+						break
+		elif (self.is_aware or (target is not player and self.sees_target())) and (self.sees_player() or guessplayer):
+			xdist = target.x - self.x
+			ydist = target.y - self.y
+			self.last_seen = (target.x, target.y)
 			self.reset_track_timer()
-			if self.distance(player) <= 1:
+			if self.distance(target) <= 1:
 				self.energy -= self.get_speed()
-				self.do_melee_attack()
-			elif self.ranged and self.should_use_ranged():
+				self.do_melee_attack(target)
+			elif self.ranged and target is player and self.should_use_ranged():
 				self.do_ranged_attack()
 			else:
 				dx = 1 if xdist > 0 else (-1 if xdist < 0 else 0)
@@ -408,22 +505,25 @@ class Monster(Entity):
 				aydist = abs(ydist)
 				old = self.energy
 				if axdist > aydist or (axdist == aydist and one_in(2)):
-					maintains = (self.x + dx, self.y) in player.fov #Choose a direction that doesn't break line of sight
+					maintains = target is not player or (self.x + dx, self.y) in player.fov #Choose a direction that doesn't break line of sight
 					if not (maintains and dx != 0 and self.move(dx, 0)) and dy != 0:
 						self.move(0, dy)
 				else:
-					maintains =  (self.x, self.y + dy) in player.fov
+					maintains = target is not player or (self.x, self.y + dy) in player.fov
 					if not (maintains and dy != 0 and self.move(0, dy)) and dx != 0:
 						self.move(dx, 0)
 				moved = self.energy < old
-				if not moved and self.distance(player) <= 4 and one_in(5):
+				if not moved and self.distance(target) <= 4 and one_in(5):
 					could_route_around = self.g.monster_at(self.x+dx, self.y) or self.g.monster_at(self.x, self.y+dy)
 					if could_route_around:
-						self.path_towards(*self.last_seen, maxlen=self.distance(player)+3)
+						self.path_towards(*self.last_seen, maxlen=self.distance(target)+3)
 		else:
-			if player.has_effect("Invisible") and (self.x, self.y) == self.last_seen:
-				self.guess_rand_invis() #Guess a random position if the player is invisible
-			if self.last_seen:
+			if self.target is not player: #We lost sight of a target; go back to targeting the player
+				self.target = player
+			target = self.target
+			if target.has_effect("Invisible") and (self.x, self.y) == self.last_seen:
+				self.guess_rand_invis() 
+			if self.target is player and self.last_seen:
 				if self.track_timer > 0:
 					if player.has_effect("Invisible"):
 						check = dice(1, 20) + calc_mod(player.DEX) < 10 + calc_mod(self.WIS)
@@ -476,7 +576,7 @@ class Bat(Monster):
 	WIS = 12
 	symbol = "w"
 	attacks = [
-		Attack((1, 3), 0, "The {0} bites you")
+		Attack((1, 3), 0, "The {0} bites {1}")
 	]	
 	
 	def __init__(self, g):
@@ -493,7 +593,7 @@ class Lizard(Monster):
 	WIS = 8
 	symbol = "r"
 	attacks = [
-		Attack((1, 3), 0, "The {0} bites you")
+		Attack((1, 3), 0, "The {0} bites {1}")
 	]
 	
 	def __init__(self, g):
@@ -510,7 +610,7 @@ class Kobold(Monster):
 	symbol = "K"
 	weapon = Dagger
 	attacks = [
-		Attack((2, 4), 4, "The {0} hits you with its dagger")
+		Attack((2, 4), 4, "The {0} hits {1} with its dagger")
 	]
 		
 	def __init__(self, g):
@@ -519,7 +619,7 @@ class Kobold(Monster):
 class ClawGrapple(Attack):
 	
 	def __init__(self, dmg, to_hit):
-		super().__init__(dmg, to_hit, "The {0} claws you")
+		super().__init__(dmg, to_hit, "The {0} claws {1}")
 		
 	def on_hit(self, player, mon, dmg):
 		if not one_in(3) and player.add_grapple(mon):
@@ -554,7 +654,7 @@ class GiantRat(Monster):
 	passive_perc = 10
 	symbol = "R"
 	attacks = [
-		Attack((2, 4), 4, "The {0} bites you")
+		Attack((2, 4), 4, "The {0} bites {1}")
 	]
 	
 	def __init__(self, g):
@@ -564,7 +664,7 @@ class GiantRat(Monster):
 class PoisonBite(Attack):
 	
 	def __init__(self):
-		super().__init__((2, 4), 6, "The {0} bites you")
+		super().__init__((2, 4), 6, "The {0} bites {1}")
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g
@@ -615,7 +715,7 @@ class GiantBat(Monster):
 	to_hit = 4
 	symbol = "W"
 	attacks = [
-		Attack((2, 6), 4, "The {0} bites you")
+		Attack((2, 6), 4, "The {0} bites {1}")
 	]
 
 	def __init__(self, g):
@@ -629,7 +729,7 @@ class GiantLizard(Monster):
 	passive_perc = 10
 	symbol = "L"
 	attacks = [
-		Attack((2, 8), 4, "The {0} bites you")
+		Attack((2, 8), 4, "The {0} bites {1}")
 	]
 	
 	def __init__(self, g):
@@ -644,7 +744,7 @@ class GiantGoat(Monster):
 	to_hit = 5
 	symbol = "G"
 	attacks = [
-		Attack((4, 4), 4, "The {0} rams you")
+		Attack((4, 4), 4, "The {0} rams {1}")
 	]
 		
 	def __init__(self, g):
@@ -663,7 +763,7 @@ class Orc(Monster):
 	symbol = "O"
 	weapon = Greataxe
 	attacks = [
-		Attack((2, 12), 3, "The {0} hits you with its greataxe")
+		Attack((2, 12), 3, "The {0} hits {1} with its greataxe")
 	]
 		
 	def __init__(self, g):
@@ -680,8 +780,8 @@ class BlackBear(Monster):
 	passive_perc = 13
 	symbol = "B"
 	attacks = [
-		Attack((2, 6), 3, "The {0} bites you"),
-		Attack((4, 4), 3, "The {0} claws you")
+		Attack((2, 6), 3, "The {0} bites {1}"),
+		Attack((4, 4), 3, "The {0} claws {1}")
 	]
 		
 	def __init__(self, g):
@@ -698,8 +798,8 @@ class BrownBear(Monster):
 	passive_perc = 13
 	symbol = "&"
 	attacks = [
-		Attack((2, 8), 3, "The {0} bites you"),
-		Attack((4, 6), 3, "The {0} claws you")
+		Attack((2, 8), 3, "The {0} bites {1}"),
+		Attack((4, 6), 3, "The {0} claws {1}")
 	]
 		
 	def __init__(self, g):
@@ -714,8 +814,8 @@ class GiantEagle(Monster):
 	passive_perc = 14
 	symbol = "E"
 	attacks = [
-		Attack((2, 6), 5, "The {0} attacks you with its beak"),
-		Attack((4, 6), 5, "The {0} attacks you with its talons")
+		Attack((2, 6), 5, "The {0} attacks {1} with its beak"),
+		Attack((4, 6), 5, "The {0} attacks {1} with its talons")
 	]
 		
 	def __init__(self, g):
@@ -733,7 +833,7 @@ class Ogre(Monster):
 	symbol = "J"
 	weapon = Club
 	attacks = [
-		Attack((2, 6), 6, "The {0} hits you with its club"),
+		Attack((2, 6), 6, "The {0} hits {1} with its club"),
 	]
 		
 	def __init__(self, g):
@@ -750,8 +850,8 @@ class PolarBear(Monster):
 	passive_perc = 13
 	symbol = "P"
 	attacks = [
-		Attack((2, 8), 7, "The {0} bites you"),
-		Attack((4, 6), 7, "The {0} claws you")
+		Attack((2, 8), 7, "The {0} bites {1}"),
+		Attack((4, 6), 7, "The {0} claws {1}")
 	]
 		
 	def __init__(self, g):
@@ -768,7 +868,7 @@ class Rhinoceros(Monster):
 	passive_perc = 13
 	symbol = "Y"
 	attacks = [
-		Attack((2, 8), 7, "The {0} gores you")
+		Attack((2, 8), 7, "The {0} gores {1}")
 	]
 		
 	def __init__(self, g):
@@ -796,9 +896,9 @@ class Wight(Monster):
 	symbol = "T"
 	weapon = Longsword
 	attacks = [
-		Attack((2, 8), 7, "The {0} hits you with its longsword"),
+		Attack((2, 8), 7, "The {0} hits {1} with its longsword"),
 		[
-			Attack((2, 8), 7, "The {0} hits you with its longsword"),
+			Attack((2, 8), 7, "The {0} hits {1} with its longsword"),
 			WightLifeDrain()
 		]
 	]
@@ -818,8 +918,8 @@ class Sasquatch(Monster):
 	beast = False
 	symbol = "Q"
 	attacks = [
-		Attack((2, 8), 6, "The {0} punches you with its fist"),
-		Attack((2, 8), 6, "The {0} punches you with its fist")
+		Attack((2, 8), 6, "The {0} punches {1} with its fist"),
+		Attack((2, 8), 6, "The {0} punches {1} with its fist")
 	]
 		
 	def __init__(self, g):
@@ -833,7 +933,7 @@ class ScorpionClaw(ClawGrapple):
 class ScorpionSting(Attack):
 	
 	def __init__(self):
-		super().__init__((2, 10), 4, "The {0} stings you")
+		super().__init__((2, 10), 4, "The {0} stings {1}")
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g
@@ -864,7 +964,7 @@ class GiantScorpion(Monster):
 class AdhesiveSlimeAttack(Attack):
 	
 	def __init__(self):
-		super().__init__((6, 8), 6, "The {0} attacks you")
+		super().__init__((6, 8), 6, "The {0} attacks {1}")
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g
@@ -900,8 +1000,8 @@ class Ettin(Monster):
 	symbol = "Ň"
 	weapon = [Battleaxe, Morningstar]
 	attacks = [
-		Attack((4, 9), 7, "The {0} attacks you with a battleaxe"),
-		Attack((4, 9), 7, "The {0} attacks you with a morningstar"),
+		Attack((4, 9), 7, "The {0} attacks {1} with a battleaxe"),
+		Attack((4, 9), 7, "The {0} attacks {1} with a morningstar"),
 	]
 		
 	def __init__(self, g):
@@ -910,7 +1010,7 @@ class Ettin(Monster):
 class RubberPseudopod(Attack):
 	
 	def __init__(self):
-		super().__init__((6, 9), 7, "The {0} hits you with its pseudopod")
+		super().__init__((6, 9), 7, "The {0} hits {1} with its pseudopod")
 
 	def on_hit(self, player, mon, dmg):
 		g = player.g

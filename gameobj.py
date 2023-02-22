@@ -66,6 +66,7 @@ class Game:
 		curses.init_pair(3, curses.COLOR_YELLOW, 0)
 		curses.init_pair(4, curses.COLOR_BLUE, 0)
 		curses.init_pair(5, curses.COLOR_MAGENTA, 0)
+		curses.init_pair(6, curses.COLOR_CYAN, 0)
 		
 		self.screen.clear()
 		curses.noecho()
@@ -81,7 +82,8 @@ class Game:
 		self.revealed = []
 		types = Effect.__subclasses__()
 		self.effect_types = {t.name:t for t in types}
-	
+		self.mon_types = Monster.__subclasses__()
+		
 	def __getstate__(self):
 		d = self.__dict__.copy()
 		del d["screen"]
@@ -254,6 +256,17 @@ class Game:
 	def add_monster(self, m):
 		if m.place_randomly():
 			self.monsters.append(m)
+			
+	def add_monster_at(self, m, pos):
+		if m.place_randomly():
+			self.monsters.append(m)
+			
+	def place_monster(self, typ):
+		m = typ(self)
+		if m.place_randomly():
+			self.monsters.append(m)
+			return m
+		return None
 	
 	def generate_level(self):
 		self.monsters.clear()
@@ -261,7 +274,7 @@ class Game:
 		self.player.rand_place()
 		self.player.fov = self.player.calc_fov()
 		num = random.randint(3, 4) + random.randint(0, int(1.4*(self.level - 1)**0.65))
-		monsters = Monster.__subclasses__()
+		monsters = self.mon_types
 		for _ in range(num):
 			pool = []
 			for t in monsters:
@@ -467,9 +480,11 @@ class Game:
 					if m.has_effect("Asleep"):
 						color = curses.color_pair(4)
 					color |= curses.A_REVERSE
+				elif m.is_friendly():
+					color = curses.color_pair(6)
 				if m is self.select or (m.x, m.y) in self.blast:
 					color = curses.color_pair(2)
-					color |= curses.A_REVERSE 
+					color |= curses.A_REVERSE
 				try:
 					screen.addstr(y+offset, x, m.symbol, color)
 				except curses.error:
@@ -539,6 +554,6 @@ class Game:
 				if m.HP > 0:
 					m.do_turn()
 				else:
-					self.monsters.remove(m)
+					self.remove_monster(m)
 				if self.player.dead:
 					return

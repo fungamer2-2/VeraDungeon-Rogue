@@ -188,27 +188,7 @@ class Player(Entity):
 		else:
 			self.g.print_msg("You feel yourself begin to teleport, but nothing happens.")
 	
-	def move(self, dx, dy):
-		if self.dead:
-			self.energy = 0
-			return False
-		adj = []
-		if (m := self.g.get_monster(self.x-1, self.y)):
-			adj.append(m)
-		if (m := self.g.get_monster(self.x+1, self.y)):
-			adj.append(m)
-		if (m := self.g.get_monster(self.x, self.y+1)):
-			adj.append(m)
-		if (m := self.g.get_monster(self.x, self.y+1)):
-			adj.append(m)
-		if self.g.monster_at(self.x + dx, self.y + dy):
-			self.moved = True
-			self.attack(dx, dy)
-			return True
-		board = self.g.board
-		if not board.is_passable(self.x + dx, self.y + dy):
-			return False
-		self.moved = True
+	def grapple_check(self):
 		if self.grappled_by:
 			stat = max(self.DEX, self.STR) #Let's use the higher of the two
 			for m in self.grappled_by[:]:
@@ -226,6 +206,40 @@ class Player(Entity):
 				else:
 					self.g.print_msg(f"You fail to escape the {m.name}'s grapple.", "yellow")	
 			self.energy -= self.get_speed()	
+			return True
+		return False
+	
+	def move(self, dx, dy):
+		if self.dead:
+			self.energy = 0
+			return False
+		board = self.g.board
+		adj = []
+		if (m := self.g.get_monster(self.x-1, self.y)):
+			adj.append(m)
+		if (m := self.g.get_monster(self.x+1, self.y)):
+			adj.append(m)
+		if (m := self.g.get_monster(self.x, self.y+1)):
+			adj.append(m)
+		if (m := self.g.get_monster(self.x, self.y+1)):
+			adj.append(m)
+		if (m := self.g.get_monster(self.x + dx, self.y + dy)):
+			self.moved = True
+			if m.is_friendly():
+				if self.grapple_check():
+					return
+				self.energy -= 30
+				self.swap_with(m)
+				m.energy = min(m.energy - 30, 0)
+				self.g.print_msg(f"You swap places with the {m.name}.")
+			else:
+				self.attack(dx, dy)
+			return True
+		board = self.g.board
+		if not board.is_passable(self.x + dx, self.y + dy):
+			return False
+		self.moved = True
+		if self.grapple_check():
 			return True
 		if not super().move(dx, dy):
 			return False
@@ -246,12 +260,14 @@ class Player(Entity):
 			dist = abs(self.x - m.x) + abs(self.y - m.y)
 			if m.has_effect("Confused") or m.has_effect("Stunned"): #Confused monsters can't make opportunity attacks
 				continue
+			if m.is_friendly():
+				continue
 			mon_speed = m.get_speed()
 			fuzz = speed//3
 			is_faster = mon_speed > speed + random.randint(-fuzz, fuzz)
 			if m.is_aware and m.sees_player() and dist >= 2 and is_faster and one_in(3):
 				self.g.print_msg(f"As you move away from {m.name}, it makes an opportunity attack!", "yellow")
-				m.melee_attack_player(force=True)
+				m.melee_attack(target=self)
 		self.energy -= 30
 		return True
 		
@@ -276,8 +292,10 @@ class Player(Entity):
 	def has_effect(self, name):
 		return name in self.effects
 		
-	def monsters_in_fov(self):
+	def monsters_in_fov(self, include_friendly=False):
 		for m in self.g.monsters:
+			if not include_friendly and m.is_friendly():
+				continue
 			if (m.x, m.y) in self.fov:
 				yield m
 		
@@ -441,10 +459,14 @@ class Player(Entity):
 		g.spawn_item(item.__class__(), (target.x, target.y))	
 		if item is self.weapon:
 			self.weapon = None
+		
 		self.inventory.remove(item)
 		self.did_attack = True
 		for m in self.monsters_in_fov():
-			if m is target or one_in(3):
+			if m is target:
+				if not m.despawn_summon():
+					m.on_alerted()
+			elif one_in(3):
 				m.on_alerted()
 		self.energy -= self.speed
 			
@@ -629,7 +651,7 @@ class Player(Entity):
 					self.g.print_msg("Critical!", "green")
 			elif mon.rubbery and self.weapon.dmg_type == "bludgeon":
 				self.g.print_msg(f"You hit the {mon.name} but your attack bounces off of it.")
-				if one_in(12):
+				if one_in(10):
 					self.g.print_msg("This type of damage seems to be highly ineffective against the {mon.name}. You may need to use something sharper.")
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
@@ -639,9 +661,8 @@ class Player(Entity):
 				
 	def defeated_monster(self, mon):
 		self.g.print_msg(f"The {mon.name} dies!", "green")
-		numbefore = len(self.g.monsters)
 		self.g.remove_monster(mon)
-		numafter = len(self.g.monsters)
+		num = len(list(filter(lambda m: not m.is_friendly(), self.g.monsters)))
 		self.remove_grapple(mon)
 		val = (mon.diff - 1)**0.85
 		gain = math.ceil(min(12 * 2**val, 60 * 1.5**val) - 6)
@@ -657,7 +678,7 @@ class Player(Entity):
 				weapon = mon.weapon()
 				self.g.print_msg(f"The {mon.name} drops its {weapon.name}!", "green")
 				self.g.spawn_item(weapon, (mon.x, mon.y))
-		if numbefore > 0 and numafter == 0:
+		if num == 0:
 			if self.g.level == 1:
 				self.g.print_msg("Level complete! Move onto the stairs marked with a \">\", then press SPACE to go down to the next level.")
 			board = self.g.board
