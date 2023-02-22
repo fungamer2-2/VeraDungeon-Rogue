@@ -10,7 +10,7 @@ Current version: 0.4 <br />
 - Install Python from https://www.python.org/<br />
 (Note: Must have at least Python 3.8)
 
-- Download `roguelike.py`, then run the command `python3 roguelike.py`
+- Download the repository, extract the zip file, then run the command `python3 roguelike.py`
 
 The game controls can be found in the game.
 
