@@ -438,7 +438,7 @@ class Player(Entity):
 				if self.weapon.dmg_type == "bludgeon":
 					damage = max(0, damage - random.randint(0, mon.HP))
 				elif self.weapon.dmg_type == "slash":
-					damage = mult_rand_frac(damage, random.randint(250, 750), 1000)
+					damage = binomial(damage, 50)
 			if damage <= 0:
 				if target.rubbery and self.weapon.dmg_type == "bludgeon":
 					g.print_msg(f"The {item.name} harmlessly bounces off the {target.name}.")
@@ -576,13 +576,15 @@ class Player(Entity):
 		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) >= mon.passive_perc
 		sneak_attack = sneak_attack and x_in_y(3 + finesse - unarmed, 7)
 		if mon.has_effect("Asleep"):
-			sneak_attack = True	
-		if adv:
-			roll = max(roll, dice(1, 20))
-		crit = False
+			sneak_attack = True
 		eff_ac = mon.AC
 		if mon.has_effect("Paralyzed"):
 			eff_ac = min(eff_ac, 5)
+			adv = True
+		if adv:
+			roll = max(roll, dice(1, 20))
+		crit = False
+		
 		mod = self.attack_mod()
 		thresh = self.weapon.crit_thresh
 		crit_threat = roll >= thresh
@@ -640,7 +642,7 @@ class Player(Entity):
 				if self.weapon.dmg_type == "bludgeon":
 					dam = max(0, dam - random.randint(0, mon.HP))
 				elif self.weapon.dmg_type == "slash":
-					dam = mult_rand_frac(dam, random.randint(250, 750), 1000)
+					dam = binomial(dam, 50)
 			mon.HP -= dam
 			if dam > 0:
 				msg = f"You hit the {mon.name} for {dam} damage."
@@ -652,7 +654,7 @@ class Player(Entity):
 			elif mon.rubbery and self.weapon.dmg_type == "bludgeon":
 				self.g.print_msg(f"You hit the {mon.name} but your attack bounces off of it.")
 				if one_in(10):
-					self.g.print_msg("This type of damage seems to be highly ineffective against the {mon.name}. You may need to use something sharper.")
+					self.g.print_msg(f"This type of damage seems to be highly ineffective against the {mon.name}. You may need to use something sharper.")
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
 			if mon.HP <= 0:

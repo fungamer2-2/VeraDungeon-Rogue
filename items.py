@@ -2,7 +2,7 @@ import random, time
 from utils import *
 
 class Item:
-	description = "This is a generic item that does nothing special. If you see this, it's a bug."
+	description = "This is a generic item that does nothing special. You shouldn't see this in-game."
 	
 	def __init__(self, name, symbol):
 		self.name = name
@@ -494,7 +494,7 @@ class Wand(Item):
 				if t is not None:
 					if not target.despawn_summon():
 						self.wand_effect(player, t)
-					t.on_alerted()
+						t.on_alerted()
 				g.blast.add((x, y))
 				g.draw_board()
 				time.sleep(0.001)

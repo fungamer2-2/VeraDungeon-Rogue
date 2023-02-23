@@ -1,4 +1,4 @@
-import random
+import random, math
 from utils import *
 
 class Tile:
@@ -63,6 +63,25 @@ class Board:
 			if not self.is_passable(*point):
 				return False
 		return True
+	
+	def get_in_radius(self, pos, radius):
+		x, y = pos
+		for px in range(x-radius, x+radius+1):
+			for py in range(y-radius, y+radius+1):
+				if (px, py) != pos:
+					yield (px, py)
+	
+	def get_in_cone(self, pos, radius, angle, widthdeg=60):
+		cx, cy = pos
+		for x, y in self.get_in_radius(pos, radius):
+			dx = x - cx
+			dy = y - cy
+			dist = math.sqrt(dx**2 + dy**2)
+			if dist > radius:
+				continue
+			dir = math.degrees(math.atan2(dy, dx))
+			if abs(angle - dir) <= widthdeg/2:
+				yield x, y
 		
 	#A monster collision cache is used to improve the performance of detecting collisions with monsters
 	#This way, checking if there's a monster at a position can be O(1) instead of O(m)
