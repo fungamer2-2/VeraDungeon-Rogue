@@ -387,7 +387,7 @@ class Monster(Entity):
 		self.dir = None
 		self.target = None
 		
-	def apply_armor(self, dam, armor_div=2):
+	def apply_armor(self, dam, armor_div=1):
 		prot = random.randint(0, 2*self.armor)
 		prot = div_rand(prot, armor_div)
 		return max(0, dam - prot)
