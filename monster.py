@@ -238,7 +238,7 @@ class Monster(Entity):
 			roll = min(roll, dice(1, 20))
 		if target is player:
 			ac_mod = player.get_ac_bonus()
-			AC = 10 + ac_mod
+			AC = 10 + ac_mod - 2 * len(player.grappled_by)
 		else:
 			AC = target.AC
 			mon = target
@@ -305,7 +305,7 @@ class Monster(Entity):
 		bonus = self.to_hit
 		if target is player:
 			dodge_mod = player.get_ac_bonus()
-			AC = 10 + dodge_mod
+			AC = 10 + dodge_mod - 2 * len(player.grappled_by)
 		else:
 			AC = target.AC
 		total = roll + self.to_hit
@@ -387,8 +387,10 @@ class Monster(Entity):
 		self.dir = None
 		self.target = None
 		
-	def apply_armor(self, dam):
-		return max(0, dam - random.randint(0, mult_rand_frac(self.armor, 3, 2)))
+	def apply_armor(self, dam, armor_div=2):
+		prot = random.randint(0, 2*self.armor)
+		prot = div_rand(prot, armor_div)
+		return max(0, dam - prot)
 		
 	def has_line_of_fire(self):
 		player = self.g.player
@@ -416,7 +418,7 @@ class Monster(Entity):
 		if mon_typ == "Troll" and self.HP < self.MAX_HP:
 			regen = 2 + one_in(3)
 			self.HP = min(self.MAX_HP, self.HP + regen)
-			if one_in(5):
+			if one_in(2 + self.distance(self.g.player)//2):
 				self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} slowly regenerates.")
 		board = self.g.board
 		player = self.g.player
@@ -445,7 +447,7 @@ class Monster(Entity):
 				random.shuffle(dirs)
 				dist = self.distance(player)
 				if dist <= 1 and one_in(4): #If we are already next to the player when frightened, there's a small chance we try to attack before running away
-					self.energy -= self.speed
+					self.energy -= self.get_speed()
 					self.do_melee_attack()
 				else:
 					for dx, dy in dirs:
@@ -457,7 +459,7 @@ class Monster(Entity):
 					else:
 						if x_in_y(2, 5): #If we are frightened and nowhere to run, try attacking
 							if dist <= 1:
-								self.energy -= self.speed
+								self.energy -= self.get_speed()
 								self.do_melee_attack()
 							elif self.ranged and target is player and self.should_use_ranged():
 								self.do_ranged_attack()

@@ -433,9 +433,9 @@ class Player(Entity):
 			if crit:
 				damage += item.roll_dmg()
 			damage += calc_mod(self.attack_stat())
-			damage = target.apply_armor(damage)
+			damage = target.apply_armor(damage, 1+crit) #Crits give 50% armor penetration
 			if target.rubbery:
-				if self.weapon.dmg_type == "bludgeon":
+				if self.weapon.dmg_type == "bludgeon":		
 					damage = max(0, damage - random.randint(0, mon.HP))
 				elif self.weapon.dmg_type == "slash":
 					damage = binomial(damage, 50)
@@ -574,13 +574,19 @@ class Player(Entity):
 		finesse = self.weapon.finesse
 		unarmed = self.weapon is UNARMED
 		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) >= mon.passive_perc
-		sneak_attack = sneak_attack and x_in_y(3 + finesse - unarmed, 7)
+		chance = 3
+		if unarmed:
+			chance -= 1
+		elif finesse:
+			chance += 1
+		sneak_attack = sneak_attack and x_in_y(chance, 7)
 		if mon.has_effect("Asleep"):
 			sneak_attack = True
 		eff_ac = mon.AC
 		if mon.has_effect("Paralyzed"):
 			eff_ac = min(eff_ac, 5)
 			adv = True
+			
 		if adv:
 			roll = max(roll, dice(1, 20))
 		crit = False
@@ -588,7 +594,7 @@ class Player(Entity):
 		mod = self.attack_mod()
 		thresh = self.weapon.crit_thresh
 		crit_threat = roll >= thresh
-		if crit_threat and (roll := dice(1, 20)) + mod >= eff_ac:
+		if crit_threat and dice(1, 20) + mod >= eff_ac:
 			hits = True
 			crit = True
 		elif roll == 1:
@@ -635,7 +641,7 @@ class Player(Entity):
 				dam += bonus
 			dam += div_rand(stat - 10, 2)
 			dam = max(dam, 1)
-			dam = mon.apply_armor(dam)
+			dam = mon.apply_armor(dam, 1+crit)
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
 			dam = max(dam, min_dam)
 			if mon.rubbery:

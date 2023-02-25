@@ -47,7 +47,7 @@ if __name__ == "__main__":
 			for _ in range(100):
 				g.player.inventory.append(item())
 		for w in dup_warnings:
-			g.print_msg(f"WARNING: {w}", "yellow")
+			g.print_msg(f"WARNING: {w}", "yellow")	
 		g.draw_board()
 		g.refresh_cache()
 		while not g.player.dead:
@@ -125,11 +125,12 @@ if __name__ == "__main__":
 						ac_bonus = g.player.get_ac_bonus(avg=True)
 						mod = g.player.attack_mod(avg=True)
 						str_mod = calc_mod(g.player.STR, avg=True)
+						AC = 10 + ac_bonus - 2 * len(g.player.grappled_by)
 						for m in fov_mons:
 							hit_prob = to_hit_prob(m.AC, mod)
 							hit_adv = to_hit_prob(m.AC, mod, adv=True) #Probability with advantage
-							be_hit = to_hit_prob(10 + ac_bonus, m.to_hit)
-							be_hit_disadv = to_hit_prob(10 + ac_bonus, m.to_hit, disadv=True)
+							be_hit = to_hit_prob(AC, m.to_hit)
+							be_hit_disadv = to_hit_prob(AC, m.to_hit, disadv=True)
 							string = f"{m.symbol} - {m.name} "
 							string += f"| To hit: {display_prob(hit_prob*100)} ({display_prob(hit_adv*100)} w/adv.)"
 							string += f" | {display_prob(be_hit*100)} to hit you ({display_prob(be_hit_disadv*100)} w/disadv.)"

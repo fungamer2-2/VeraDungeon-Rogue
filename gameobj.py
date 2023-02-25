@@ -435,6 +435,7 @@ class Game:
 				tile.revealed = True
 				self.revealed.append(point)
 		offset = 1
+		marked = set()
 		for col, row in self.revealed:
 			tile = board.get(col, row)
 			s = tile.symbol
@@ -462,6 +463,10 @@ class Game:
 					x, y = self.projectile
 					if (col, row) == (x, y):
 						s = "*"
+			if (col, row) in self.blast:
+				color = curses.color_pair(2)
+				color |= curses.A_REVERSE
+				marked.add((col, row))
 			try:
 				screen.addstr(row + offset, col, s, color)
 			except curses.error:
@@ -489,7 +494,9 @@ class Game:
 					screen.addstr(y+offset, x, m.symbol, color)
 				except curses.error:
 					pass
-		for x, y in (self.blast - monpos):
+		for x, y in (self.blast - monpos - marked):
+			if not self.board.in_bounds(x, y):
+				continue
 			try:
 				screen.addstr(y+offset, x, " ", curses.color_pair(2) | curses.A_REVERSE)
 			except curses.error:

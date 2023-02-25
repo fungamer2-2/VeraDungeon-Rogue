@@ -51,6 +51,9 @@ class Board:
 					return 
 				error += dx
 				y1 += sy
+	
+	def in_bounds(self, x, y):
+		return 0 <= x < self.cols and 0 <= y < self.rows
 				
 	def line_of_sight(self, pos1, pos2):
 		for point in self.line_between(pos1, pos2, skiplast=True):
@@ -72,15 +75,24 @@ class Board:
 					yield (px, py)
 	
 	def get_in_cone(self, pos, radius, angle, widthdeg=60):
-		cx, cy = pos
+		cx, cy = pos 
+		angle %= 360
 		for x, y in self.get_in_radius(pos, radius):
 			dx = x - cx
 			dy = y - cy
 			dist = math.sqrt(dx**2 + dy**2)
-			if dist > radius:
+			if round(dist) > radius:
 				continue
 			dir = math.degrees(math.atan2(dy, dx))
-			if abs(angle - dir) <= widthdeg/2:
+			half = widthdeg/2
+			if dir < 0:
+				dir += 360
+			
+			if abs(angle - dir) <= half:
+				yield x, y
+			elif angle + half >= 360 and dir <= (angle + half) % 360:
+				yield x, y 
+			elif angle - half < 0 and dir >= angle-half+360:
 				yield x, y
 		
 	#A monster collision cache is used to improve the performance of detecting collisions with monsters
