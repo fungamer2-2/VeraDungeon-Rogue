@@ -21,11 +21,11 @@ class GameTextMenu:
 		self.termwidth = size.columns
 		self.msg = []
 		
-	def add_text(self):
+	def add_text(self, txt):
 		txt = str(txt)
-		self.msg.extend(textwrap.wrap(txt, termwidth))
+		self.msg.extend(textwrap.wrap(txt, self.termwidth))
 		
-	def add_line():
+	def add_line(self):
 		self.msg.append("")
 		
 	def clear_msg(self):
@@ -33,7 +33,7 @@ class GameTextMenu:
 	
 	def display(self):
 		self.screen.clear()
-		self.screen.addstr(0, 0, "\n".join(msg))
+		self.screen.addstr(0, 0, "\n".join(self.msg))
 		self.screen.refresh()
 		
 	def close(self):
@@ -113,7 +113,7 @@ class Game:
 			os.remove("save.pickle")
 	
 	def help_menu(self):
-		menu = GameTextMenu()
+		menu = GameTextMenu(self)
 		menu.add_text("Use the wasd keys to move")
 		menu.add_text("Use the q and z keys to scroll the message log")
 		menu.add_text("f - view info about monsters currently in view")
@@ -126,7 +126,7 @@ class Game:
 		menu.add_text("j - view item descriptions at this tile")
 		menu.add_text("t - throw a throwable item")
 		menu.add_text("Q - quit the game")
-		menu.add_text()
+		menu.add_line()
 		menu.add_text("Press enter to continue")
 		menu.display()
 		menu.wait_for_enter()
@@ -178,7 +178,7 @@ class Game:
 		self.draw_board()
 		
 	def game_over(self):
-		menu = GameTextMenu()				
+		menu = GameTextMenu(self)				
 		p = self.player
 		menu.add_text("GAME OVER")
 		menu.add_line()
@@ -404,7 +404,7 @@ class Game:
 	def print_msg_if_sees(self, pos, msg, color=None):
 		assert len(pos) == 2 and type(pos) == tuple
 		if pos in self.player.fov:
-			self.print_msg(msg, color=None)
+			self.print_msg(msg, color=color)
 			
 	def print_msg(self, msg, color=None):
 		m = {

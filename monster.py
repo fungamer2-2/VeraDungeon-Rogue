@@ -262,6 +262,7 @@ class Monster(Entity):
 			damage = self.modify_damage(target, dice(*attack.dmg))
 			the_target = "you" if target is player else f"the {target.name}"
 			if damage:
+				
 				self.g.print_msg_if_sees((target.x, target.y), attack.msg.format(self.name, the_target) + f" for {damage} damage!", "red" if target is player else "white")
 				if target is player:
 					target.take_damage(damage)
