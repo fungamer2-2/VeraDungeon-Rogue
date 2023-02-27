@@ -229,7 +229,7 @@ if __name__ == "__main__":
 						for m in g.player.monsters_in_fov():
 							if x_in_y(3, g.level):
 								continue
-							if dice(1, 20) + calc_mod(g.player.DEX) - 4 < m.passive_perc:
+							if dice(1, 20) + calc_mod(g.player.DEX) - 5 < m.passive_perc:
 								m.is_aware = True
 					else:
 						g.print_msg("You can't go down here.")

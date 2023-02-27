@@ -57,7 +57,8 @@ class Monster(Entity):
 		self.target = None
 		
 	def is_friendly(self):
-		#TODO: Charmed condition
+		if self.has_effect("Charmed"):
+			return True
 		return self.summon_timer is not None
 		
 	def despawn(self):
@@ -196,6 +197,10 @@ class Monster(Entity):
 					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} is no longer stunned.")
 				elif e == "Frightened":
 					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} regains courage.")
+				elif e == "Charmed":
+					self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} becomes hostile again!", "yellow")
+					self.energy -= self.get_speed()
+					self.target = self.g.player
 				
 	def should_use_ranged(self):
 		board = self.g.board
@@ -215,7 +220,7 @@ class Monster(Entity):
 			if damage <= 0:
 				return 0
 		if target is player and player.has_effect("Resistance"):
-			damage = div_rand(damage, 2)
+			damage = binomial(damage, 50)
 		return max(damage, 0)
 		
 	def melee_attack(self, target=None, attack=None, force=False):
@@ -261,8 +266,7 @@ class Monster(Entity):
 		else:
 			damage = self.modify_damage(target, dice(*attack.dmg))
 			the_target = "you" if target is player else f"the {target.name}"
-			if damage:
-				
+			if damage:		
 				self.g.print_msg_if_sees((target.x, target.y), attack.msg.format(self.name, the_target) + f" for {damage} damage!", "red" if target is player else "white")
 				if target is player:
 					target.take_damage(damage)

@@ -281,13 +281,14 @@ class Game:
 				minlevel = t.min_level-1
 				thresh =  int(minlevel*1.7)
 				thresh = min(thresh, minlevel+10)
-				if self.level > random.randint(minlevel, thresh):
+				lev = self.level
+				if lev > random.randint(minlevel, thresh):
 					pool.append(t)
 			assert len(pool) > 0
 			typ = random.choice(pool)	
 			m = typ(self)
 			if m.place_randomly():
-				if one_in(2):
+				if one_in(2) and x_in_y(6, self.level):
 					fov = self.player.fov
 					los_tries = 100
 					while los_tries > 0:
@@ -335,10 +336,11 @@ class Game:
 			
 			if x_in_y(3, 8):
 				typ = rand_weighted(
-					(StunScroll, 1),
-					(TeleportScroll, 2),
-					(SleepScroll, 1),
-					(ConfusionScroll, 2)
+					(StunScroll, 2),
+					(TeleportScroll, 4),
+					(SleepScroll, 2),
+					(ConfusionScroll, 4),
+					(SummonScroll, 2)
 				)
 				place_item(typ)
 				
@@ -356,9 +358,10 @@ class Game:
 				(Glaive, 3),
 				(Greataxe, 2),
 			]
-			for _ in range(random.randint(2, 3)):
-				if not one_in(3):
-					place_item(rand_weighted(*types))
+			types = [t for t in types if t[1] >= int((60/self.level)**0.75)]
+			num = binomial(random.randint(2, 3), 2, 3)
+			for _ in range(num):
+				place_item(rand_weighted(*types))
 				
 			if self.level > 1 and x_in_y(min(55 + self.level, 80), 100):
 				types = [LeatherArmor]
@@ -370,6 +373,10 @@ class Game:
 					types.append(ScaleMail)
 				if self.level > 10:
 					types.append(HalfPlate)
+				if self.level > 13:
+					types.append(SplintArmor)
+				if self.level > 15:
+					types.append(PlateArmor)
 				num = 1
 				if self.level > random.randint(1, 3) and one_in(3):
 					num += 1

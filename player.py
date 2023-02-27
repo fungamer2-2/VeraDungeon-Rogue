@@ -579,7 +579,7 @@ class Player(Entity):
 			chance -= 1
 		elif finesse:
 			chance += 1
-		sneak_attack = sneak_attack and x_in_y(chance, 7)
+		sneak_attack = sneak_attack and x_in_y(chance, 8)
 		if mon.has_effect("Asleep"):
 			sneak_attack = True
 		eff_ac = mon.AC
@@ -621,12 +621,11 @@ class Player(Entity):
 		else:
 			stat = self.attack_stat()
 			dam = self.base_damage_roll()
-			mult = 2
-			if self.weapon:
-				mult = self.weapon.crit_mult
+			base = dam
+			mult = self.weapon.crit_mult
 			if crit:
 				for _ in range(mult - 1):
-					dam += self.base_damage_roll()
+					dam += self.base_damage_roll()	
 			if sneak_attack:
 				scale = 6
 				lev = self.level
@@ -638,6 +637,10 @@ class Player(Entity):
 				bonus = dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, scale)
 				if unarmed:
 					bonus = max(1, div_rand(bonus, 3))
+				softcap = base * mult
+				if bonus > softcap: #Adds a soft cap to sneak attack damage
+					diff = bonus - softcap
+					bonus = softcap + div_rand(diff, 3)
 				dam += bonus
 			dam += div_rand(stat - 10, 2)
 			dam = max(dam, 1)
