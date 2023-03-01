@@ -434,7 +434,14 @@ class Game:
 		board = self.board
 		screen.clear()
 		p = self.player
-		screen.addstr(0, 0, f"HP {p.HP}/{p.get_max_hp()} | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
+		hp_str = f"HP {p.HP}/{p.get_max_hp()}"
+		c = 0
+		if p.HP <= p.get_max_hp()//8:
+			c = curses.color_pair(1) | curses.A_BOLD
+		elif p.HP <= p.get_max_hp()//4:
+			c = curses.color_pair(3) 
+		screen.addstr(0, 0, hp_str, c)
+		screen.addstr(0, len(hp_str), f" | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
 		fov = self.player.fov
 		for point in fov:
 			tile = board.get(*point)
