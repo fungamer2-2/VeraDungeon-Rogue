@@ -270,10 +270,9 @@ class Monster(Entity):
 				self.g.print_msg_if_sees((target.x, target.y), attack.msg.format(self.name, the_target) + f" for {damage} damage!", "red" if target is player else "white")
 				if target is player:
 					target.take_damage(damage)
+					attack.on_hit(player, self, damage)
 				else:
 					target.take_damage(damage, source=self)
-				if target is not player: #TODO: Make on_hit work for monsters
-					attack.on_hit(player, self, damage)
 			else:
 				self.g.print_msg_if_sees((target.x, target.y), attack.msg.format(self.name, the_target) + " but does no damage.")
 			

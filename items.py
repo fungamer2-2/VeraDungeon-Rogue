@@ -595,3 +595,11 @@ class LightningWand(Wand):
 		g.print_msg(msg)
 		if target.HP <= 0:
 			player.defeated_monster(target)
+
+class Ring(Item):
+	#Passives can be: STR, DEX, protection, stealth, dodge, to_hit
+	
+	def __init__(self, name, passives={}):
+		super().__init__(name, "Ô")
+	
+	

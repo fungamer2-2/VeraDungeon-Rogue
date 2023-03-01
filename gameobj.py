@@ -523,11 +523,11 @@ class Game:
 			except:
 				pass
 		wd = min(width, 60)
-		str_string = f"STR {self.player.STR}"
-		screen.addstr(0, wd - len(str_string), str_string)
-		dex_string = f"DEX {self.player.DEX}"
-		screen.addstr(1, wd - len(dex_string), dex_string)
-		weapon = self.player.weapon
+		str_string = f"STR {p.STR}"
+		screen.addstr(0, wd - len(str_string), str_string, self._stat_mod_color(p.mod_str))
+		dex_string = f"DEX {p.DEX}"
+		screen.addstr(1, wd - len(dex_string), dex_string, self._stat_mod_color(p.mod_dex))
+		weapon = p.weapon
 		X, Y = weapon.dmg
 		w = f"{weapon.name} ({X}d{Y})"
 		screen.addstr(2, wd - len(w), w)
@@ -535,7 +535,7 @@ class Game:
 		if armor:
 			ar_str = f"{armor.name} ({armor.protect})"
 			screen.addstr(3, wd - len(ar_str), ar_str)
-		detect = self.player.detectability()
+		detect = p.detectability()
 		if detect is not None:
 			stealth = round(1/max(detect, 0.01) - 1, 1)
 			det_str = f"{stealth} stealth"
@@ -546,6 +546,13 @@ class Game:
 		except curses.error:
 			pass
 		screen.refresh()
+		
+	def _stat_mod_color(self, mod):
+		if mod > 0:
+			return curses.color_pair(2)
+		if mod < 0:
+			return curses.color_pair(1)
+		return 0
 		
 	def refresh_cache(self):
 		"Refreshes the monster collision cache"

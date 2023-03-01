@@ -18,8 +18,12 @@ class Player(Entity):
 		self.inventory = []
 		self.energy = 30
 		self.speed = 30
-		self.STR = 10
-		self.DEX = 10
+		
+		self.base_str = 10
+		self.base_dex = 10
+		self.mod_str = 0
+		self.mod_dex = 0
+		
 		self.hp_drain = 0
 		self.poison = 0
 		self.effects = {}
@@ -30,6 +34,16 @@ class Player(Entity):
 		self.moved = False
 		self.last_moved = False
 		self.grappled_by = []
+		
+	#Todo: Allow effects to modify these values
+		
+	@property
+	def STR(self):
+		return self.base_str + self.mod_str
+		
+	@property
+	def DEX(self):
+		return self.base_dex + self.mod_dex
 			
 	def add_grapple(self, mon):
 		if mon.distance(self) > 1: #Can't grapple if we're not close enough'
@@ -80,23 +94,25 @@ class Player(Entity):
 		while self.exp >= self.max_exp():
 			self.exp -= self.max_exp()
 			self.level += 1
-			if self.level % 4 == 0:		
+			avg = (self.base_str+self.base_dex)//2
+			past_softcap = avg >= 20
+			if self.level % (4+2*past_softcap) == 0:
 				if one_in(2):
-					self.STR += 1
+					self.base_str += 1
 				else:
-					self.DEX += 1
+					self.base_dex += 1
 					dex_inc = True
-			if self.level % 3 == 0:
+			if self.level % (3+past_softcap) == 0:
 				self.g.print_msg(f"You leveled up to level {(self.level)}!", "green")
 				old_level = self.level
 				while True:
 					user = self.g.input("Would you like to increase (S)TR or (D)EX?")
 					user = user.upper()
 					if user == "S":
-						self.STR += 1
+						self.base_str += 1
 						break
 					elif user == "D":
-						self.DEX += 1
+						self.base_dex += 1
 						dex_inc = True
 						break
 					else:
@@ -332,6 +348,7 @@ class Player(Entity):
 					dam = dice(2, dist*3)
 					self.g.print_msg(f"You take {dam} damage by the impact!", "red")
 					self.take_damage(dam)
+					self.energy -= 40
 				return
 			if dist == 0:
 				self.g.print_msg("You're knocked back!", "red")
@@ -491,6 +508,13 @@ class Player(Entity):
 		self.last_attacked = self.did_attack
 		self.last_moved = self.moved
 		self.moved = False
+		
+		self.mod_str = 0
+		self.mod_dex = 0
+		
+		#Passive modifiers go here
+		
+
 		self.ticks += 1
 		for m in self.grappled_by[:]:
 			dist = abs(m.x - self.x) + abs(m.y - self.y)

@@ -75,3 +75,15 @@ def display_prob(perc):
 	else:
 		perc = math.floor(perc + 0.5)
 	return f"{perc}%"
+	
+class Dice:
+	
+	def __init__(self, num, sides):
+		self.num = num
+		self.sides = sides
+		
+	def roll(self):
+		return dice(num, sides)
+		
+	def max(self):
+		return self.num*self.sides
