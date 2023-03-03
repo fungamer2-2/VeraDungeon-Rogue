@@ -125,6 +125,7 @@ class Game:
 		menu.add_text(". - wait a turn")
 		menu.add_text("j - view item descriptions at this tile")
 		menu.add_text("t - throw a throwable item")
+		menu.add_text("+ - view equipped rings (and bonuses from them)")
 		menu.add_text("Q - quit the game")
 		menu.add_line()
 		menu.add_text("Press enter to continue")
