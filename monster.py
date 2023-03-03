@@ -211,12 +211,16 @@ class Monster(Entity):
 		
 	def modify_damage(self, target, damage):
 		player = self.g.player
-		armor = target.armor
-		if armor:
+		if target is player:
+			protect = target.armor.protect if target.armor else 0
+			protect += target.passives["protect"]
+		else:
+			protect = target.armor	
+		if protect > 0:
 			if target is player:
-				damage -= random.randint(1, armor.protect*4) #Armor can reduce damage
+				damage -= random.randint(1, protect*4) #Armor can reduce damage
 			else:
-				damage -= random.randint(0, mult_rand_frac(armor, 3, 2))
+				damage -= random.randint(0, mult_rand_frac(protect, 3, 2))
 			if damage <= 0:
 				return 0
 		if target is player and player.has_effect("Resistance"):
@@ -243,7 +247,7 @@ class Monster(Entity):
 			roll = min(roll, dice(1, 20))
 		if target is player:
 			ac_mod = player.get_ac_bonus()
-			AC = 10 + ac_mod - 2 * len(player.grappled_by)
+			AC = 10 + ac_mod
 		else:
 			AC = target.AC
 			mon = target
@@ -301,7 +305,7 @@ class Monster(Entity):
 		for point in board.line_between((self.x, self.y), (target.x, target.y), skipfirst=True, skiplast=True):
 			self.g.set_projectile_pos(*point)
 			self.g.draw_board()
-			time.sleep(0.08)
+			time.sleep(0.06)
 		self.g.clear_projectile()
 		roll = dice(1, 20)
 		if (target is player and player.has_effect("Invisible")) or self.has_effect("Frightened"): #The player is harder to hit when invisible
@@ -309,7 +313,7 @@ class Monster(Entity):
 		bonus = self.to_hit
 		if target is player:
 			dodge_mod = player.get_ac_bonus()
-			AC = 10 + dodge_mod - 2 * len(player.grappled_by)
+			AC = 10 + dodge_mod
 		else:
 			AC = target.AC
 		total = roll + self.to_hit
@@ -888,7 +892,7 @@ class WightLifeDrain(Attack):
 	def on_hit(self, player, mon, dmg):
 		g = player.g
 		g.print_msg("Your life force is drained!", "red")
-		player.drain(random.randint(1, dmg))
+		player.drain(dmg)
 
 class Wight(Monster):
 	diff = 7
@@ -970,7 +974,7 @@ class GiantScorpion(Monster):
 class AdhesiveSlimeAttack(Attack):
 	
 	def __init__(self):
-		super().__init__((6, 8), 6, "The {0} attacks {1}")
+		super().__init__((5, 8), 6, "The {0} attacks {1}")
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g

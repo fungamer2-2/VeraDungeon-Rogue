@@ -47,6 +47,7 @@ if __name__ == "__main__":
 			g.print_msg(f"WARNING: {w}", "yellow")	
 		g.draw_board()
 		g.refresh_cache()
+		g.player.recalc_passives()
 		while not g.player.dead:
 			refresh = False
 			lastenergy = g.player.energy
@@ -209,7 +210,7 @@ if __name__ == "__main__":
 					tile = g.board.get(g.player.x, g.player.y)
 					if tile.items:
 						item = tile.items.pop()
-						g.player.inventory.append(item)
+						g.player.add_item(item)
 						g.print_msg(f"You pick up a {item.name}.")
 						g.player.energy -= g.player.get_speed()
 					else:
@@ -250,6 +251,19 @@ if __name__ == "__main__":
 					refresh = True
 				elif char == "t":
 					g.player.throw_item()
+					refresh = True
+				elif char == "+": #Display worn rings
+					if g.player.worn_rings:
+						num = len(g.player.worn_rings)
+						g.print_msg(f"You are wearing {num} ring{'s' if num != 1 else ''}:")
+						g.print_msg(", ".join(r.name for r in g.player.worn_rings))
+						passives = g.player.calc_ring_passives()
+						if passives:
+							g.print_msg("Your rings are providing the following passive bonuses:")
+							keys = sorted(passives.keys(), key=lambda k: k.lower)
+							g.print_msg(", ".join(f"+{passives[k]} {'to-hit' if k == 'to_hit' else k}" for k in keys))
+					else:
+						g.print_msg("You aren't wearing any rings.")
 					refresh = True
 			moved = g.player.energy < lastenergy
 			if moved:

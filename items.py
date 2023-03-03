@@ -526,7 +526,7 @@ class MagicMissile(Wand):
 	description = "This wand can be used to fire magic missiles at creatures, which will always hit."
 	
 	def __init__(self):
-		super().__init__("wand of magic missiles", random.randint(random.randint(2, 7), 7))
+		super().__init__("wand of magic missiles", random.randint(3, 7))
 	
 	def wand_effect(self, player, target):
 		g = player.g
@@ -562,7 +562,7 @@ class WandOfFear(Wand):
 	description = "This wand can be used to make nearby enemies frightened of the player."
 	
 	def __init__(self):
-		super().__init__("wand of fear", random.randint(random.randint(2, 7), 7))
+		super().__init__("wand of fear", random.randint(3, 7))
 	
 	def wand_effect(self, player, target):
 		g = player.g
@@ -576,7 +576,7 @@ class LightningWand(Wand):
 	description = "This wand can be used to cast lightning bolts, dealing damage to nearby enemies."
 	
 	def __init__(self):
-		super().__init__("wand of lightning", random.randint(random.randint(2, 7), 7), efftype="ray")
+		super().__init__("wand of lightning", random.randint(3, 7), efftype="ray")
 	
 	def wand_effect(self, player, target):
 		g = player.g
@@ -597,9 +597,57 @@ class LightningWand(Wand):
 			player.defeated_monster(target)
 
 class Ring(Item):
-	#Passives can be: STR, DEX, protection, stealth, dodge, to_hit
+	description = "This is a ring that can provide a passive bonus when equipped."
+	#Passives can be: STR, DEX, protect, stealth, dodge, to_hit
+	_valid_passives = {"STR", "DEX", "protect", "stealth", "dodge", "to_hit"}
+	def __init__(self, name, wear_msg, rem_msg, passives={}):
+		super().__init__(name, "ô")
+		for key in passives:
+			if key not in self._valid_passives:
+				raise ValueError(f"{key!r} is not a valid passive")
+		self.wear_msg = wear_msg
+		self.rem_msg = rem_msg
+		self.passives = passives
+		
+	def use(self, player):
+		g = player.g
+		worn_rings = player.worn_rings
+		if self in worn_rings:
+			if g.yes_no(f"Take off your {self.name}?"):
+				g.print_msg(f"You take off your {self.name}.")
+				g.print_msg(self.rem_msg)
+				worn_rings.remove(self)
+				player.recalc_passives()
+		else:
+			if len(worn_rings) >= 7:
+				g.print_msg(f"You're already wearing the maximum number of rings.")
+				return False	
+			else:
+				g.print_msg(f"You put on a {self.name}.")
+				g.print_msg(self.wear_msg)
+				worn_rings.append(self)
+				player.recalc_passives()
+				
+class ProtectionRing(Ring):
+	description = "This ring can provide a slight bonus to protection when equipped."
 	
-	def __init__(self, name, passives={}):
-		super().__init__(name, "Ô")
+	def __init__(self):
+		super().__init__("ring of protection", "You feel more protected.", "You feel more vulnerable.",
+			passives={"protect": 1}
+		)
+		
+class StrengthRing(Ring):
+	description = "This ring can provide a bonus to strength when equipped."
 	
+	def __init__(self):
+		super().__init__("ring of strength", "You feel stronger.", "You don't feel as strong anymore.",
+			passives={"STR": 3}
+		)
+
+class DexterityRing(Ring):
+	description = "This ring can provide a bonus to dexterity when equipped."
 	
+	def __init__(self):
+		super().__init__("ring of dexterity", "You feel like your agility has improved.", "You feel less agile.",
+			passives={"DEX": 3}
+		)		

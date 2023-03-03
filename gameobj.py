@@ -324,7 +324,11 @@ class Game:
 					if one_in(2):
 						place_item(HealthPotion)
 					break
-						
+					
+			if one_in(5):
+				typ = random.choice([StrengthRing, ProtectionRing, DexterityRing])
+				place_item(typ)
+				
 			if self.level > dice(1, 6) and x_in_y(3, 8):
 				typ = rand_weighted(
 					(MagicMissile, 10),

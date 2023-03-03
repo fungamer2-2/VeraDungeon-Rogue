@@ -1,8 +1,9 @@
-import random, time
+import random, time, math
+from collections import defaultdict
 from utils import *
 
 from entity import Entity
-from items import Weapon, UNARMED
+from items import Wand, Weapon, UNARMED
 
 class Player(Entity):
 	
@@ -23,6 +24,7 @@ class Player(Entity):
 		self.base_dex = 10
 		self.mod_str = 0
 		self.mod_dex = 0
+		self.passives = defaultdict(int)
 		
 		self.hp_drain = 0
 		self.poison = 0
@@ -33,7 +35,22 @@ class Player(Entity):
 		self.last_attacked = False
 		self.moved = False
 		self.last_moved = False
+		
 		self.grappled_by = []
+		self.worn_rings = []
+		
+	def calc_ring_passives(self):
+		passives = defaultdict(int)
+		for ring in self.worn_rings:
+			for stat, val in ring.passives.items():
+				passives[stat] += val**2
+		for p in passives:
+			passives[p] = round(math.sqrt(passives[p]))
+		return passives
+		
+	def recalc_passives(self):
+		passives = self.calc_ring_passives()
+		self.passives = passives
 		
 	#Todo: Allow effects to modify these values
 		
@@ -71,6 +88,8 @@ class Player(Entity):
 						s = softcap + div_rand(diff, 4)
 		if self.has_effect("Haste"):
 			s += 2
+		s += self.passives["dodge"]
+		s -= 2 * len(self.grappled_by)
 		return s
 		
 	def get_max_hp(self):
@@ -177,7 +196,17 @@ class Player(Entity):
 			self.dead = True
 		elif self.HP <= self.get_max_hp() // 4:
 			self.g.print_msg("*** WARNING: Your HP is low! ***", "red")
-
+	
+	def add_item(self, item):
+		if isinstance(item, Wand):
+			w = next((t for t in self.inventory if isinstance(t, Wand) and type(t) == type(item)), None)
+			if w is not None:
+				w.charges += item.charges
+			else:
+				self.inventory.append(item)
+		else:
+			self.inventory.append(item)
+			
 	def rand_place(self):
 		self.x = 0
 		self.y = 0
@@ -325,7 +354,7 @@ class Player(Entity):
 				eff.on_expire(self)
 			
 	def stealth_mod(self):
-		mod = 0
+		mod = self.passives["stealth"]
 		if self.last_attacked:
 			mod -= 5
 		if self.has_effect("Invisible"):
@@ -387,7 +416,7 @@ class Player(Entity):
 			dx = abs(self.x - m.x)
 			dy = abs(self.y - m.y)
 			return max(dx, dy) <= long
-		target = g.select_monster_target(cond, error="None of your targets are within range of your {item.name}.")
+		target = g.select_monster_target(cond, error=f"None of your targets are within range of your {item.name}.")
 		if not target:
 			return
 		g.select = target
@@ -513,6 +542,8 @@ class Player(Entity):
 		self.mod_dex = 0
 		
 		#Passive modifiers go here
+		self.mod_str += self.passives["STR"]
+		self.mod_dex += self.passives["DEX"]
 		
 
 		self.ticks += 1
@@ -577,11 +608,10 @@ class Player(Entity):
 				mod -= 2
 		else:
 			mod += 2
-		return mod
+		return mod + self.passives["to_hit"]
 		
 	def base_damage_roll(self):
-		w = self.weapon
-		return w.roll_dmg() if w else dice(1, 2)
+		return self.weapon.roll_dmg()
 				
 	def attack(self, dx, dy):
 		x, y = self.x + dx, self.y + dy
@@ -686,7 +716,7 @@ class Player(Entity):
 					self.g.print_msg("Critical!", "green")
 			elif mon.rubbery and self.weapon.dmg_type == "bludgeon":
 				self.g.print_msg(f"You hit the {mon.name} but your attack bounces off of it.")
-				if one_in(10):
+				if one_in(7):
 					self.g.print_msg(f"This type of damage seems to be highly ineffective against the {mon.name}. You may need to use something sharper.")
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
@@ -699,7 +729,9 @@ class Player(Entity):
 		self.g.remove_monster(mon)
 		num = len(list(filter(lambda m: not m.is_friendly(), self.g.monsters)))
 		self.remove_grapple(mon)
-		val = (mon.diff - 1)**0.85
+		v1 = min(mon.diff, 6*math.log2(1+mon.diff/6))
+		val = (v1 - 1)**0.85
+		
 		gain = math.ceil(min(12 * 2**val, 60 * 1.5**val) - 6)
 		self.gain_exp(gain)
 		if mon.weapon:
