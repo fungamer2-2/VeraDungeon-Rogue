@@ -45,7 +45,7 @@ class Player(Entity):
 			for stat, val in ring.passives.items():
 				passives[stat] += val**2
 		for p in passives:
-			passives[p] = round(math.sqrt(passives[p]))
+			passives[p] = math.ceil(round(math.sqrt(passives[p]), 3))
 		return passives
 		
 	def recalc_passives(self):
