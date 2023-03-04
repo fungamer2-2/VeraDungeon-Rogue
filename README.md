@@ -3,7 +3,7 @@ A roguelike game in Python
 
 Discord Server: https://discord.gg/dKRGTgxT65
 
-Current version: 0.4 <br />
+Current version: 0.5 <br />
 (Note: This is currently a work in progress)
 
 ### How to run the game<br />
