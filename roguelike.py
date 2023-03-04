@@ -38,6 +38,7 @@ from monster import *
 if __name__ == "__main__":		
 	g = Game()
 	try:
+		g.print_msg("Welcome to VeraDugeon Rogue v0.5")
 		g.print_msg("Press \"?\" if you want to view the controls.")
 		if g.has_saved_game():
 			g.maybe_load_game()	
