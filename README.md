@@ -1,5 +1,5 @@
-# Roguelike 
-My roguelike game in Python
+# VeraDungeon Rogue
+A roguelike game in Python
 
 Discord Server: https://discord.gg/dKRGTgxT65
 
