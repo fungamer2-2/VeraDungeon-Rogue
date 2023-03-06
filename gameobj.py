@@ -315,7 +315,8 @@ class Game:
 				(ResistPotion, 20),
 				(SpeedPotion, 20),
 				(InvisibilityPotion, 12),
-				(RejuvPotion, 3)
+				(RejuvPotion, 3),
+				(ClairPotion, 9)
 			]
 			for _ in range(4):
 				if x_in_y(45, 100):
@@ -447,7 +448,9 @@ class Game:
 			c = curses.color_pair(3) 
 		screen.addstr(0, 0, hp_str, c)
 		screen.addstr(0, len(hp_str), f" | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
-		fov = self.player.fov
+		fov = self.player.fov.copy()
+		if self.player.has_effect("Clairvoyance"):
+			fov.update(set(point for point in self.board.get_in_circle((self.player.x, self.player.y), 8)))
 		for point in fov:
 			tile = board.get(*point)
 			if not tile.revealed:

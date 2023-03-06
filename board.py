@@ -71,8 +71,18 @@ class Board:
 		x, y = pos
 		for px in range(x-radius, x+radius+1):
 			for py in range(y-radius, y+radius+1):
-				if (px, py) != pos:
+				if (px, py) != pos and self.in_bounds(x, y):
 					yield (px, py)
+					
+	def get_in_circle(self, pos, radius):
+		cx, cy = pos
+		for x, y in self.get_in_radius(pos, radius):
+			dx = x - cx
+			dy = y - cy
+			dist = math.sqrt(dx**2 + dy**2)
+			if round(dist) > radius or not self.in_bounds(x, y):
+				continue	
+			yield x, y
 	
 	def get_in_cone(self, pos, radius, angle, widthdeg=60):
 		cx, cy = pos 

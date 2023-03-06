@@ -44,3 +44,9 @@ class Rejuvenated(Effect):
 	
 	def __init__(self, duration):
 		super().__init__(duration, "You begin to feel extremely rejuvenated.", "The rejuvenation wears off.")
+
+class Clairvoyance(Effect):
+	name = "Clairvoyance"
+	
+	def __init__(self, duration):
+		super().__init__(duration, "You feel much more perceptive.", "Your clairvoyance fades.")

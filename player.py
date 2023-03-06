@@ -51,7 +51,7 @@ class Player(Entity):
 	def recalc_passives(self):
 		passives = self.calc_ring_passives()
 		self.passives = passives
-		
+
 	#Todo: Allow effects to modify these values
 		
 	@property

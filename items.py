@@ -99,6 +99,20 @@ class RejuvPotion(Item):
 		g.print_msg("You drink a potion of rejuvenation.")
 		player.gain_effect("Rejuvenated", random.randint(20, 25))
 		return True
+		
+class ClairPotion(Item):
+	description = "Consuming this potion allows you to see beyond ehat you can normally see."
+	
+	def __init__(self):
+		super().__init__("potion of clairvoyance", "Y")
+		
+	def use(self, player):
+		g = player.g
+		g.print_msg("You drink a clairvoyance potion.")
+		if player.has_effect("Clairvoyance"):
+			g.print_msg("You feel even more clairvoyant.")
+		player.gain_effect("Clairvoyance", random.randint(50, 80))
+		return True
 
 class ConfusionScroll(Scroll):
 	description = "Reading this scroll may cause nearby monsters to become confused."
