@@ -25,7 +25,7 @@ class Haste(Effect):
 	
 	def on_expire(self, player):
 		g = player.g
-		player.gain_effect("Lethargy", random.randint(5, 8))
+		player.gain_effect("Lethargy", random.randint(4, 10))
 		
 class Resistance(Effect):
 	name = "Resistance"

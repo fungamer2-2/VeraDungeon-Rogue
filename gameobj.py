@@ -450,7 +450,19 @@ class Game:
 		screen.addstr(0, len(hp_str), f" | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
 		fov = self.player.fov.copy()
 		if self.player.has_effect("Clairvoyance"):
-			fov.update(set(point for point in self.board.get_in_circle((self.player.x, self.player.y), 8)))
+			for point in self.board.get_in_circle((self.player.x, self.player.y), 8):
+				x, y = point
+				neighbors = [(x+1, y), (x-1, y), (x, y+1), (x, y-1), (x+1, y+1), (x+1, y-1), (x-1, y+1), (x-1, y-1)]
+				surrounded = True
+				for xp, yp in neighbors:
+					if not self.board.in_bounds(xp, yp):
+						continue
+					if not board.blocks_sight(xp, yp):
+						surrounded = False
+						break
+				if not surrounded:
+					fov.add(point)
+					
 		for point in fov:
 			tile = board.get(*point)
 			if not tile.revealed:
