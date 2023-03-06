@@ -111,7 +111,7 @@ class ClairPotion(Item):
 		g.print_msg("You drink a clairvoyance potion.")
 		if player.has_effect("Clairvoyance"):
 			g.print_msg("You feel even more clairvoyant.")
-		player.gain_effect("Clairvoyance", random.randint(45, 90))
+		player.gain_effect("Clairvoyance", random.randint(45, 80))
 		return True
 
 class ConfusionScroll(Scroll):
