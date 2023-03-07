@@ -82,6 +82,9 @@ class Dice:
 		self.num = num
 		self.sides = sides
 		
+	def avg(self):
+		return self.num * (self.sides + 1) // 2
+		
 	def roll(self):
 		return dice(num, sides)
 		

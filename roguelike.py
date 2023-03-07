@@ -124,10 +124,11 @@ if __name__ == "__main__":
 						ac_bonus = g.player.get_ac_bonus(avg=True)
 						mod = g.player.attack_mod(avg=True)
 						str_mod = calc_mod(g.player.STR, avg=True)
-						AC = 10 + ac_bonus - 2 * len(g.player.grappled_by)
+						AC = 10 + ac_bonus
+						mon_AC = m.get_ac(avg=True)
 						for m in fov_mons:
-							hit_prob = to_hit_prob(m.AC, mod)
-							hit_adv = to_hit_prob(m.AC, mod, adv=True) #Probability with advantage
+							hit_prob = to_hit_prob(mon_AC, mod)
+							hit_adv = to_hit_prob(mon_AC, mod, adv=True) #Probability with advantage
 							be_hit = to_hit_prob(AC, m.to_hit)
 							be_hit_disadv = to_hit_prob(AC, m.to_hit, disadv=True)
 							string = f"{m.symbol} - {m.name} "

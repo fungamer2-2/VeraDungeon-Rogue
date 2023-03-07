@@ -1,3 +1,4 @@
+
 import random, time
 from utils import *
 
@@ -58,7 +59,7 @@ class SpeedPotion(Item):
 		return True
 		
 class ResistPotion(Item):	
-	description = "Consuming this potion temporarily halves all damage taken by the one who drinks it."
+	description = "Consuming this potion temporarily reduces damage taken by the one who drinks it."
 	
 	def __init__(self):
 		super().__init__("resistance potion", "R")
@@ -339,7 +340,7 @@ class Weapon(Item):
 	
 	def __init__(self, name, symbol, dmg, finesse=False, heavy=False, thrown=None):
 		super().__init__(name, symbol)
-		self.dmg = dmg
+		self.dmg = Dice(*dmg)
 		self.finesse = finesse
 		self.heavy = heavy #Heavy weapons get a -2 penalty on attack rolls
 		self.thrown = thrown #Either None or a 2-tuple representing short and long range
@@ -361,7 +362,7 @@ class Weapon(Item):
 			player.weapon = self
 			
 	def roll_dmg(self):
-		return dice(*self.dmg)
+		return self.dmg.roll()
 		
 	def on_hit(self, player, mon):
 		pass
@@ -594,7 +595,7 @@ class LightningWand(Wand):
 	
 	def wand_effect(self, player, target):
 		g = player.g
-		val = calc_mod(2 * (target.AC - 10) + 10)
+		val = calc_mod(target.DEX)
 		numdice = 8
 		if not target.has_effect("Paralyzed") and dice(1, 20) + val >= 15:
 			numdice = 4

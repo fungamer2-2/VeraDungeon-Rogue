@@ -377,7 +377,6 @@ class Player(Entity):
 					dam = dice(2, dist*3)
 					self.g.print_msg(f"You take {dam} damage by the impact!", "red")
 					self.take_damage(dam)
-					self.energy -= 40
 				return
 			if dist == 0:
 				self.g.print_msg("You're knocked back!", "red")
@@ -445,10 +444,12 @@ class Player(Entity):
 		avg_mod = self.attack_mod(avg=True)
 		mod -= pen
 		avg_mod -= avg_pen
-		AC = target.AC
+		AC = target.get_ac()
+		avg_AC = target.get_ac(avg=True)
 		if target.incapacitated():
 			AC = min(AC, 5)
-		prob = to_hit_prob(AC, avg_mod)*100
+			avg_AC = min(avg_AC, 5)
+		prob = to_hit_prob(avg_AC, avg_mod)*100
 		prob_str = display_prob(prob)
 		self.g.print_msg(f"Throwing {item.name} at {target.name} - {prob_str} to-hit.")
 		c = g.input("Press enter to throw, or enter \"C\" to cancel")
@@ -610,9 +611,14 @@ class Player(Entity):
 			mod += 2
 		return mod + self.passives["to_hit"]
 		
-	def base_damage_roll(self):
-		return self.weapon.roll_dmg()
-				
+	def base_damage_dice(self):
+		return self.weapon.dmg
+		
+	def get_protect(self):
+		protect = self.armor.protect if self.armor else 0
+		protect += self.passives["protect"]
+		return protect
+		
 	def attack(self, dx, dy):
 		x, y = self.x + dx, self.y + dy
 		if not self.g.monster_at(x, y):
@@ -636,7 +642,7 @@ class Player(Entity):
 		sneak_attack = sneak_attack and x_in_y(chance, 8)
 		if mon.has_effect("Asleep"):
 			sneak_attack = True
-		eff_ac = mon.AC
+		eff_ac = mon.get_ac()
 		if mon.has_effect("Paralyzed"):
 			eff_ac = min(eff_ac, 5)
 			adv = True
@@ -674,12 +680,12 @@ class Player(Entity):
 			self.g.print_msg(f"Your attack misses the {mon.name}.")
 		else:
 			stat = self.attack_stat()
-			dam = self.base_damage_roll()
-			base = dam
+			dmgdice = self.base_damage_dice()
+			dam = dmgdice.roll()
 			mult = self.weapon.crit_mult
 			if crit:
 				for _ in range(mult - 1):
-					dam += self.base_damage_roll()	
+					dam += dmgdice.roll()
 			if sneak_attack:
 				scale = 6
 				lev = self.level
@@ -691,7 +697,7 @@ class Player(Entity):
 				bonus = dice(scale_int, 6) + mult_rand_frac(dice(1, 6), scale_mod, scale)
 				if unarmed:
 					bonus = max(1, div_rand(bonus, 3))
-				softcap = base * mult
+				softcap = dmgdice.avg()*mult
 				if bonus > softcap: #Adds a soft cap to sneak attack damage
 					diff = bonus - softcap
 					bonus = softcap + div_rand(diff, 3)
@@ -703,7 +709,7 @@ class Player(Entity):
 			dam = max(dam, min_dam)
 			if mon.rubbery:
 				if self.weapon.dmg_type == "bludgeon":
-					dam = max(0, dam - random.randint(0, mon.HP))
+					dam = binomial(dam, dam, mon.HP)
 				elif self.weapon.dmg_type == "slash":
 					dam = binomial(dam, 50)
 			mon.HP -= dam
@@ -718,12 +724,28 @@ class Player(Entity):
 				self.g.print_msg(f"You hit the {mon.name} but your attack bounces off of it.")
 				if one_in(7):
 					self.g.print_msg(f"This type of damage seems to be highly ineffective against the {mon.name}. You may need to use something sharper.")
+				if self.weapon is not UNARMED and one_in(5) and dice(1, 20) + calc_mod(self.DEX) <= 12:
+					reflectdmg = dmgdice.roll()
+					prot = self.get_protect()
+					if prot > 0:
+						reflectdmg = max(0, reflectdmg - random.randint(0, prot*2))
+					if reflectdmg > 0:
+						reflectdmg = max(1, binomial(reflectdmg, 60))
+					
+					if reflectdmg:
+						self.g.print_msg(f"The attack bounces back to you for {reflectdmg}!", "red")
+						self.take_damage(reflectdmg)
+						self.energy -= 20
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
 			if mon.HP <= 0:
 				self.defeated_monster(mon)
 			self.adjust_duration("Invisible", -random.randint(0, 6))
-				
+			for m in self.monsters_in_fov():
+				d = m.distance(self, False)
+				if one_in(d):
+					m.on_alerted()
+			
 	def defeated_monster(self, mon):
 		self.g.print_msg(f"The {mon.name} dies!", "green")
 		self.g.remove_monster(mon)

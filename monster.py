@@ -26,6 +26,7 @@ class Monster(Entity):
 	AC = 10
 	to_hit = 0
 	passive_perc = 11
+	DEX = 10
 	WIS = 10
 	grapple_dc = 10
 	armor = 0
@@ -86,6 +87,9 @@ class Monster(Entity):
 			self.energy -= 30
 			return True
 		return False
+		
+	def get_ac(self, avg=False):
+		return 10 + calc_mod(self.DEX, avg)
 		
 	def choose_polymorph_type(self):
 		#Note: A bit of a hack using object polymorphing
@@ -249,7 +253,7 @@ class Monster(Entity):
 			ac_mod = player.get_ac_bonus()
 			AC = 10 + ac_mod
 		else:
-			AC = target.AC
+			AC = target.get_ac()
 			mon = target
 			mon.target = self
 		bonus = attack.to_hit
@@ -582,7 +586,7 @@ class Monster(Entity):
 class Bat(Monster):
 	min_level = 1
 	diff = 1
-	AC = 12
+	DEX = 15
 	WIS = 12
 	symbol = "w"
 	attacks = [
@@ -600,6 +604,7 @@ class Lizard(Monster):
 	diff = 1
 	speed = 20
 	passive_perc = 9
+	DEX = 12
 	WIS = 8
 	symbol = "r"
 	attacks = [
@@ -612,7 +617,7 @@ class Lizard(Monster):
 class Kobold(Monster):
 	diff = 2
 	min_level = 3
-	AC = 12
+	DEX = 15
 	WIS = 7
 	to_hit = 4
 	passive_perc = 8
@@ -643,7 +648,7 @@ class CrabClaw(ClawGrapple):
 class GiantCrab(Monster):
 	diff = 3
 	min_level = 4
-	AC = 12
+	DEX = 15
 	WIS = 9
 	to_hit = 3
 	armor = 2	
@@ -659,7 +664,7 @@ class GiantCrab(Monster):
 class GiantRat(Monster):
 	diff = 2
 	min_level = 5
-	AC = 12
+	DEX = 15
 	to_hit = 4
 	passive_perc = 10
 	symbol = "R"
@@ -686,7 +691,7 @@ class PoisonBite(Attack):
 class GiantPoisonousSnake(Monster):
 	diff = 3
 	min_level = 8
-	AC = 14
+	DEX = 18
 	WIS = 10
 	to_hit = 6
 	passive_perc = 10
@@ -701,7 +706,7 @@ class GiantPoisonousSnake(Monster):
 class Skeleton(Monster):
 	diff = 3
 	min_level = 7
-	AC = 12
+	DEX = 14
 	WIS = 8
 	to_hit = 4
 	armor = 1
@@ -720,7 +725,7 @@ class GiantBat(Monster):
 	diff = 3
 	speed = 60
 	min_level = 8
-	AC = 13
+	DEX = 16
 	WIS = 12
 	to_hit = 4
 	symbol = "W"
@@ -734,7 +739,7 @@ class GiantBat(Monster):
 class GiantLizard(Monster):
 	diff = 3
 	min_level = 9
-	AC = 12
+	DEX = 11
 	to_hit = 4
 	passive_perc = 10
 	symbol = "L"
@@ -749,7 +754,7 @@ class GiantGoat(Monster):
 	diff = 4
 	speed = 40
 	min_level = 12
-	AC = 11
+	DEX = 11
 	WIS = 12
 	to_hit = 5
 	symbol = "G"
@@ -764,7 +769,7 @@ class Orc(Monster):
 	diff = 4
 	speed = 30
 	min_level = 12
-	AC = 11
+	DEX = 12	
 	WIS = 11
 	to_hit = 5
 	armor = 2
@@ -783,7 +788,7 @@ class BlackBear(Monster):
 	diff = 4
 	speed = 40
 	min_level = 13
-	AC = 11
+	DEX = 10
 	WIS = 12
 	to_hit = 3
 	armor = 1
@@ -801,7 +806,7 @@ class BrownBear(Monster):
 	diff = 5
 	speed = 40
 	min_level = 15
-	AC = 10
+	DEX = 10	
 	WIS = 12
 	to_hit = 3
 	armor = 1
@@ -817,7 +822,8 @@ class BrownBear(Monster):
 
 class GiantEagle(Monster):
 	diff = 5
-	AC = 13
+	speed = 50
+	DEX = 17
 	WIS = 12
 	min_level = 16
 	to_hit = 5
@@ -834,6 +840,7 @@ class GiantEagle(Monster):
 class Ogre(Monster):
 	diff = 6
 	AC = 9
+	DEX = 8
 	WIS = 7
 	min_level = 20
 	to_hit = 6
@@ -853,7 +860,7 @@ class PolarBear(Monster):
 	diff = 6
 	speed = 40
 	min_level = 18
-	AC = 10
+	DEX = 10
 	WIS = 13
 	to_hit = 7
 	armor = 2
@@ -871,7 +878,7 @@ class Rhinoceros(Monster):
 	diff = 6
 	speed = 40
 	min_level = 19
-	AC = 9
+	DEX = 8
 	WIS = 12
 	to_hit = 7
 	armor = 2
@@ -898,7 +905,7 @@ class Wight(Monster):
 	diff = 7
 	speed = 30
 	min_level = 21
-	AC = 12
+	DEX = 14
 	WIS = 13
 	to_hit = 4
 	armor = 2
@@ -920,7 +927,7 @@ class Sasquatch(Monster):
 	diff = 7
 	speed = 40
 	min_level = 22
-	AC = 10
+	DEX = 10
 	WIS = 16
 	to_hit = 6
 	armor = 2
@@ -956,9 +963,10 @@ class GiantScorpion(Monster):
 	diff = 7
 	speed = 40
 	min_level = 21
-	AC = 15
+	DEX = 13
 	WIS = 9
 	to_hit = 4
+	armor = 4
 	passive_perc = 9
 	grapple_dc = 12
 	symbol = "D"
@@ -985,7 +993,7 @@ class GiantGreenSlime(Monster):
 	diff = 8
 	speed = 30
 	min_level = 24
-	AC = 12
+	DEX = 14
 	WIS = 8
 	to_hit = 4
 	passive_perc = 9
@@ -1002,7 +1010,7 @@ class Ettin(Monster):
 	diff = 8
 	speed = 40
 	min_level = 26
-	AC = 9
+	DEX = 8
 	WIS = 10
 	to_hit = 7
 	passive_perc = 14
@@ -1039,7 +1047,7 @@ class RubberSlime(Monster):
 	diff = 9
 	speed = 30
 	min_level = 29
-	AC = 9
+	DEX = 10
 	WIS = 10
 	to_hit = 7
 	passive_perc = 10

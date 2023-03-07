@@ -554,9 +554,10 @@ class Game:
 		screen.addstr(0, wd - len(str_string), str_string, self._stat_mod_color(p.mod_str))
 		dex_string = f"DEX {p.DEX}"
 		screen.addstr(1, wd - len(dex_string), dex_string, self._stat_mod_color(p.mod_dex))
-		weapon = p.weapon
-		X, Y = weapon.dmg
-		w = f"{weapon.name} ({X}d{Y})"
+		dmgdice = p.weapon.dmg
+		X = dmgdice.num
+		Y = dmgdice.sides
+		w = f"{p.weapon.name} ({X}d{Y})"
 		screen.addstr(2, wd - len(w), w)
 		armor = self.player.armor
 		if armor:

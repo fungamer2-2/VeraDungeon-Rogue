@@ -76,9 +76,13 @@ class Entity:
 	def can_see(self, x, y):
 		return (x, y) in self.fov
 		
-	def distance(self, other):
-		return abs(self.x - other.x) + abs(self.y - other.y)
-	
+	def distance(self, other, manhattan=True):
+		dx = abs(self.x - other.x)
+		dy = abs(self.y - other.y)
+		if manhattan:
+			return dx + dy
+		return max(dx, dy)
+		
 	def distance_pos(self, pos):
 		return abs(self.x - pos[0]) + abs(self.y - pos[1])
 		
