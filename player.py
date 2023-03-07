@@ -171,6 +171,7 @@ class Player(Entity):
 	def do_poison(self, amount):
 		if amount <= 0:
 			return
+		amount += random.randint(0, amount)
 		self.poison += amount
 		if self.has_effect("Rejuvenated"):
 			self.g.print_msg("The rejunenation blocks the effects of the poison in your system.")
@@ -486,11 +487,16 @@ class Player(Entity):
 		else:
 			hits = roll + mod >= AC
 		if hits:
-			dmg = item.dmg if item.thrown else Dice(1, 4)
+			dmg = item.dmg
 			damage = dmg.roll()
+			if not item.thrown:
+				damage = random.randint(1, damage)
 			if crit:
 				for _ in range(item.crit_mult - 1):
-					damage += dmg.roll()
+					d = dmg.roll()
+					if not item.thrown:
+						d = random.randint(1, d)
+					damage += d
 			damage += calc_mod(self.attack_stat())
 			damage = target.apply_armor(damage, 1+crit) #Crits give 50% armor penetration
 			if target.rubbery:
@@ -559,8 +565,7 @@ class Player(Entity):
 		
 		#Passive modifiers go here
 		self.mod_str += self.passives["STR"]
-		self.mod_dex += self.passives["DEX"]
-		
+		self.mod_dex += self.passives["DEX"]		
 
 		self.ticks += 1
 		for m in self.grappled_by[:]:
@@ -568,14 +573,13 @@ class Player(Entity):
 			if dist > 1:
 				self.remove_grapple(m)
 		if self.poison > 0:
-			maxdmg = 1 + self.poison // 8
-			dmg = random.randint(1, maxdmg)
+			dmg = 1 + math.isqrt(self.poison//3)
 			if dmg > self.poison:
 				dmg = self.poison
 			self.poison -= dmg
 			if not self.has_effect("Rejuvenated"): #Rejuvenation allows poison to tick down without doing any damage
 				self.take_damage(dmg, True)
-				if maxdmg > 3:
+				if dmg > 3:
 					if one_in(2):
 						self.g.print_msg("You feel very sick.", "red")
 				elif one_in(3):
