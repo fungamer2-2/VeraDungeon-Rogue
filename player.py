@@ -527,7 +527,10 @@ class Player(Entity):
 					m.on_alerted()
 			elif one_in(3):
 				m.on_alerted()
-		self.energy -= self.speed
+		cost = 30
+		if not item.thrown:
+			cost *= 2 if item.heavy else 1.5
+		self.energy -= cost
 			
 	def detectability(self):
 		d = []

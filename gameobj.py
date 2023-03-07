@@ -365,7 +365,7 @@ class Game:
 				(Greataxe, 2),
 			]
 			types = [t for t in types if t[1] >= int((60/self.level)**0.75)]
-			num = binomial(random.randint(2, 3), 2, 3)
+			num = binomial(random.randint(2, 3), 50)
 			for _ in range(num):
 				place_item(rand_weighted(*types))
 				
