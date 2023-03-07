@@ -389,11 +389,11 @@ class Player(Entity):
 		
 	def throw_item(self):
 		throwable = filter(lambda t: isinstance(t, Weapon), self.inventory)
-		throwable = filter(lambda t: t.thrown is not None, throwable)
+		#throwable = filter(lambda t: t.thrown is not None, throwable)
 		throwable = list(throwable)
 		g = self.g
 		if not throwable:
-			g.print_msg("You don't have any throwable items.")
+			g.print_msg("You don't have any weapons to throw.")
 			return
 		if not (mons := list(self.monsters_in_fov())):
 			g.print_msg("You don't see any targets to throw an item.")
@@ -410,7 +410,10 @@ class Player(Entity):
 			g.print_msg("You didn't enter a number.")
 			return
 		item = throwable[num - 1]
-		short, long = item.thrown
+		if item.thrown:
+			short, long = item.thrown
+		else:
+			short, long = 4, 12
 		def cond(m): #Here, we take the number of tiles of the LOS line
 			dx = abs(self.x - m.x)
 			dy = abs(self.y - m.y)
@@ -440,8 +443,15 @@ class Player(Entity):
 			g.print_msg(f"Ranged accuracy is reduced beyond {short} tiles.", "yellow")
 			pen += mult_rand_frac(num_tiles - short, scale, long - short) 
 			avg_pen += scale*(num_tiles-short)/(long-short)
-		mod = self.attack_mod(avg=False)
-		avg_mod = self.attack_mod(avg=True)
+		if item.heavy:
+			pen += 2
+			g.print_msg(f"This weapon is heavy, so accuracy is reduced.", "yellow")
+		if not item.thrown:
+			pen += 2
+			 #This stacks with the -2 penalty for heavy weapons
+			g.print_msg(f"This weapon isn't designed to be thrown, so accuracy is reduced.", "yellow")
+		mod = self.attack_mod(throwing=False, avg=False)
+		avg_mod = self.attack_mod(throwing=False, avg=True)
 		mod -= pen
 		avg_mod -= avg_pen
 		AC = target.get_ac()
@@ -476,14 +486,16 @@ class Player(Entity):
 		else:
 			hits = roll + mod >= AC
 		if hits:
-			damage = item.roll_dmg()
+			dmg = item.dmg if item.thrown else Dice(1, 4)
+			damage = dmg.roll()
 			if crit:
-				damage += item.roll_dmg()
+				for _ in range(item.crit_mult - 1):
+					damage += dmg.roll()
 			damage += calc_mod(self.attack_stat())
 			damage = target.apply_armor(damage, 1+crit) #Crits give 50% armor penetration
 			if target.rubbery:
 				if self.weapon.dmg_type == "bludgeon":		
-					damage = max(0, damage - random.randint(0, mon.HP))
+					damage = binomial(damage, damage, mon.HP)
 				elif self.weapon.dmg_type == "slash":
 					damage = binomial(damage, 50)
 			if damage <= 0:
@@ -590,7 +602,7 @@ class Player(Entity):
 					perc = m.passive_perc
 					if m.has_effect("Asleep"):
 						perc -= 5
-					if (m.x, m.y) in self.fov and (roll == 1 or roll + div_rand(self.DEX - 10, 2) + mod < perc):
+					if (m.x, m.y) in self.fov and (one_in(30) or roll + div_rand(self.DEX - 10, 2) + mod < perc):
 						m.on_alerted()
 						m.lose_effect("Asleep")
 		self.did_attack = False
@@ -601,14 +613,15 @@ class Player(Entity):
 			stat = max(stat, self.DEX)
 		return stat
 		
-	def attack_mod(self, avg=False):
+	def attack_mod(self, throwing=False, avg=False):
 		stat = self.attack_stat()
 		mod = calc_mod(stat, avg=avg)
-		if self.weapon:
-			if self.weapon.heavy:
-				mod -= 2
-		else:
-			mod += 2
+		if not throwing:
+			if self.weapon:
+				if self.weapon.heavy:
+					mod -= 2
+			else:
+				mod += 2
 		return mod + self.passives["to_hit"]
 		
 	def base_damage_dice(self):

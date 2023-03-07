@@ -86,7 +86,7 @@ class Dice:
 		return self.num * (self.sides + 1) // 2
 		
 	def roll(self):
-		return dice(num, sides)
+		return dice(self.num, self.sides)
 		
 	def max(self):
 		return self.num*self.sides
