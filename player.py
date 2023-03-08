@@ -761,10 +761,11 @@ class Player(Entity):
 			if mon.HP <= 0:
 				self.defeated_monster(mon)
 			self.adjust_duration("Invisible", -random.randint(0, 6))
-			for m in self.monsters_in_fov():
-				d = m.distance(self, False)
-				if one_in(d):
-					m.on_alerted()
+			if not sneak_attack:
+				for m in self.monsters_in_fov():
+					d = m.distance(self, False)
+					if one_in(6) or one_in(d):
+						m.on_alerted()
 			
 	def defeated_monster(self, mon):
 		self.g.print_msg(f"The {mon.name} dies!", "green")

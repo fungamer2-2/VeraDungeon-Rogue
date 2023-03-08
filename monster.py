@@ -422,18 +422,19 @@ class Monster(Entity):
 		if self.has_effect("Asleep") or self.has_effect("Stunned") or self.has_effect("Paralyzed"):
 			self.energy = 0
 			return
+		player = self.g.player	
 		if self.target is None:
-			self.target = self.g.player
+			self.target = player
 		if self.is_friendly():
 			self.is_aware = True
 		mon_typ = self.__class__.__name__
 		if mon_typ == "Troll" and self.HP < self.MAX_HP:
 			regen = 2 + one_in(3)
 			self.HP = min(self.MAX_HP, self.HP + regen)
-			if one_in(2 + self.distance(self.g.player)//2):
+			if x_in_y(3, 5) and one_in(self.distance(player)):
 				self.g.print_msg_if_sees((self.x, self.y), f"The {self.name} slowly regenerates.")
 		board = self.g.board
-		player = self.g.player
+		
 		target = self.target
 		confused = self.has_effect("Confused") and not one_in(4)
 		guessplayer = False
@@ -822,7 +823,7 @@ class BrownBear(Monster):
 
 class GiantEagle(Monster):
 	diff = 5
-	speed = 50
+	speed = 45
 	DEX = 17
 	WIS = 12
 	min_level = 16
@@ -1060,3 +1061,22 @@ class RubberSlime(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "rubbery slime", 170, False)
+
+class Troll(Monster):
+	diff = 9
+	speed = 40
+	min_level = 28
+	DEX = 13
+	WIS = 9
+	to_hit = 7
+	passive_perc = 11
+	armor = 4
+	symbol = "ő"
+	attacks = [
+		Attack((2, 6), 7, "The {0} bites {1}"),
+		Attack((4, 6), 7, "The {0} claws {1}"),
+		Attack((4, 6), 7, "The {0} claws {1}"),
+	]
+	
+	def __init__(self, g):
+		super().__init__(g, "troll", 168, False)

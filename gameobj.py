@@ -288,6 +288,9 @@ class Game:
 			assert len(pool) > 0
 			typ = random.choice(pool)	
 			m = typ(self)
+			fuzz = max(1, m.MAX_HP//10)
+			delta = random.randint(0, fuzz) - random.randint(0, fuzz)
+			new_HP = max(1, m.MAX_HP + delta)
 			if m.place_randomly():
 				if one_in(2) and x_in_y(6, self.level):
 					fov = self.player.fov
