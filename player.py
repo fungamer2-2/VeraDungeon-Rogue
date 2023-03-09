@@ -449,7 +449,6 @@ class Player(Entity):
 			g.print_msg(f"This weapon is heavy, so accuracy is reduced.", "yellow")
 		if not item.thrown:
 			pen += 2
-			 #This stacks with the -2 penalty for heavy weapons
 			g.print_msg(f"This weapon isn't designed to be thrown, so accuracy is reduced.", "yellow")
 		mod = self.attack_mod(throwing=False, avg=False)
 		avg_mod = self.attack_mod(throwing=False, avg=True)
@@ -489,15 +488,17 @@ class Player(Entity):
 		if hits:
 			dmg = item.dmg
 			damage = dmg.roll()
+			damage += calc_mod(self.attack_stat())
+			damage += item.enchant
 			if not item.thrown:
 				damage = random.randint(1, damage)
 			if crit:
+				bonus = 0
 				for _ in range(item.crit_mult - 1):
-					d = dmg.roll()
-					if not item.thrown:
-						d = random.randint(1, d)
-					damage += d
-			damage += calc_mod(self.attack_stat())
+					bonus += dmg.roll()
+				if not item.thrown:
+					bonus = random.randint(1, bonus)
+				damage += bonus
 			damage = target.apply_armor(damage, 1+crit) #Crits give 50% armor penetration
 			if target.rubbery:
 				if self.weapon.dmg_type == "bludgeon":		
@@ -726,6 +727,7 @@ class Player(Entity):
 					bonus = softcap + div_rand(diff, 3)
 				dam += bonus
 			dam += div_rand(stat - 10, 2)
+			dam += self.weapon.enchant
 			dam = max(dam, 1)
 			dam = mon.apply_armor(dam, 1+crit)
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage

@@ -7,7 +7,16 @@ class Item:
 	
 	def __init__(self, name, symbol):
 		self.name = name
+		self.orig_name = name
 		self.symbol = symbol
+		self.enchant = 0
+	
+	def can_enchant(self):
+		return False
+		
+	def add_enchant(self):
+		self.enchant += 1
+		self.name = self.orig_name + f" +{self.enchant}"
 		
 	def use(self, player):
 		g = player.g
@@ -269,7 +278,14 @@ class Armor(Item):
 	
 	def __init__(self, name, symbol, protect):
 		super().__init__(name, symbol)
-		self.protect = protect
+		self._protect = protect
+	
+	@property 
+	def protect(self):
+		return self._protect + self.enchant
+		
+	def can_enchant(self):
+		return self.enchant < 3
 		
 	def use(self, player):
 		g = player.g
@@ -344,7 +360,10 @@ class Weapon(Item):
 		self.finesse = finesse
 		self.heavy = heavy #Heavy weapons get a -2 penalty on attack rolls
 		self.thrown = thrown #Either None or a 2-tuple representing short and long range
-		
+	
+	def can_enchant(self):
+		return self.enchant < 3
+	
 	def use(self, player):
 		g = player.g
 		if self is player.weapon:
@@ -365,6 +384,7 @@ class Weapon(Item):
 		return self.dmg.roll()
 		
 	def on_hit(self, player, mon):
+		#TODO: Not yet implemented
 		pass
 		
 class NullWeapon(Weapon):
@@ -373,6 +393,39 @@ class NullWeapon(Weapon):
 	
 	def __init__(self):
 		super().__init__("unarmed", "f", (1, 2))
+		
+	def can_enchant(self):
+		return False
+		
+class EnchantScroll(Scroll):
+	description = "Reading this scroll will enchant a weapon or armor of the player's choice."
+	
+	def __init__(self):
+		super().__init__("scroll of enchant")
+	
+	def use(self, player):
+		g = player.g
+		items = [t for t in player.inventory if t.can_enchant()]
+		if not items:
+			g.print_msg("You don't have any items that can be enchanted.")
+		else:
+			items.sort(key=lambda t: t.name)
+			strings = ", ".join(f"{i+1}. {t.name}" for i, t in enumerate(items))
+			g.print_msg("Enchant which item? (Enter a number)")
+			g.print_msg(strings)
+			try:
+				num = int(g.input())
+				if num < 1 or num > len(items):
+					g.print_msg(f"Number must be between 1 and {len(items)}.")
+					return False #Don't waste the item on an invalid input
+			except ValueError:
+				g.print_msg("You didn't enter a number.")
+				return False
+			g.print_msg("You read a scroll of enchant. The scroll crumbles to dust.")
+			item = items[num-1]
+			g.print_msg(f"You enchant your {item.name}. It gains a +1 bonus.")
+			item.add_enchant()
+		return True
 		
 UNARMED = NullWeapon()
 

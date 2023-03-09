@@ -349,8 +349,9 @@ class Game:
 					(StunScroll, 2),
 					(TeleportScroll, 4),
 					(SleepScroll, 2),
-					(ConfusionScroll, 4),
-					(SummonScroll, 2)
+					(ConfusionScroll, 3),
+					(SummonScroll, 2),
+					(EnchantScroll, 2)
 				)
 				place_item(typ)
 				
