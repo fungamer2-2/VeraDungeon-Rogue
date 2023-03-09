@@ -523,7 +523,7 @@ class Player(Entity):
 			g.print_msg(f"The {item.name} misses the {target.name}.")
 		g.spawn_item(item.__class__(), (target.x, target.y))	
 		if item is self.weapon:
-			self.weapon = None
+			self.weapon = UNARMED
 		
 		self.inventory.remove(item)
 		self.did_attack = True
@@ -537,6 +537,9 @@ class Player(Entity):
 		if not item.thrown:
 			cost *= 2 if item.heavy else 1.5
 		self.energy -= cost
+		
+	def is_unarmed(self):
+		return self.weapon is UNARMED
 			
 	def detectability(self):
 		d = []
@@ -689,7 +692,7 @@ class Player(Entity):
 			else:
 				self.g.print_msg(f"You catch the {mon.name} completely unaware!")
 			hits = True
-			mon.energy -= 15
+			mon.energy -= random.randint(15, 30)
 		if mon.has_effect("Asleep"):
 			hits = True
 			mon.lose_effect("Asleep")
@@ -742,20 +745,20 @@ class Player(Entity):
 					self.g.print_msg("Critical!", "green")
 			elif mon.rubbery and self.weapon.dmg_type == "bludgeon":
 				self.g.print_msg(f"You hit the {mon.name} but your attack bounces off of it.")
-				if one_in(7):
-					self.g.print_msg(f"This type of damage seems to be highly ineffective against the {mon.name}. You may need to use something sharper.")
-				if self.weapon is not UNARMED and one_in(5) and dice(1, 20) + calc_mod(self.DEX) <= 12:
+				do_reveal = one_in(7)
+				if not self.is_unarmed() and one_in(5) and dice(1, 20) + calc_mod(self.DEX) <= 12:
 					reflectdmg = dmgdice.roll()
 					prot = self.get_protect()
 					if prot > 0:
 						reflectdmg = max(0, reflectdmg - random.randint(0, prot*2))
 					if reflectdmg > 0:
 						reflectdmg = max(1, binomial(reflectdmg, 60))
-					
-					if reflectdmg:
+						do_reveal = True
 						self.g.print_msg(f"The attack bounces back to you for {reflectdmg}!", "red")
 						self.take_damage(reflectdmg)
 						self.energy -= 20
+				if do_reveal:
+					self.g.print_msg(f"This type of damage seems to be highly ineffective against the {mon.name}. You may need to use something sharper.")
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
 			if mon.HP <= 0:

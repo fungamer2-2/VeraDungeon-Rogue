@@ -209,7 +209,7 @@ class SummonScroll(Scroll):
 
 		points = list(player.fov)
 		points.remove((player.x, player.y))
-		types = list(filter(lambda t: t.diff <= 8 and g.level >= t.min_level, g.mon_types))
+		types = list(filter(lambda t: t.diff <= 7 and g.level > t.min_level, g.mon_types))
 		num = random.randint(2, 3)
 		random.shuffle(points)
 		points.sort(key=lambda p: abs(p[0] - player.x) + abs(p[1] - player.y))

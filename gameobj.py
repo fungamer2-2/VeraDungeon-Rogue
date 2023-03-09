@@ -291,6 +291,7 @@ class Game:
 			fuzz = max(1, m.MAX_HP//10)
 			delta = random.randint(0, fuzz) - random.randint(0, fuzz)
 			new_HP = max(1, m.MAX_HP + delta)
+			m.HP = m.MAX_HP = new_HP
 			if m.place_randomly():
 				if one_in(2) and x_in_y(6, self.level):
 					fov = self.player.fov
