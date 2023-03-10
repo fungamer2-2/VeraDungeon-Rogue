@@ -338,13 +338,19 @@ class Player(Entity):
 	def has_effect(self, name):
 		return name in self.effects
 		
-	def monsters_in_fov(self, include_friendly=False):
+	def monsters_in_fov(self, include_friendly=False, clairvoyance=False):
+		if clairvoyance:
+			clairvoyance = self.has_effect("Clairvoyance")
 		for m in self.g.monsters:
 			if not include_friendly and m.is_friendly():
 				continue
-			if (m.x, m.y) in self.fov:
+			mx, my = m.x, m.y
+			dx = self.x - mx 
+			dy = self.y - my
+			dist = math.sqrt(dx**2 + dy**2)
+			if (mx, my) in self.fov or (clairvoyance and round(dist) <= 8):
 				yield m
-		
+			
 	def adjust_duration(self, effect, amount):
 		if effect in self.effects:
 			eff = self.effects[effect]

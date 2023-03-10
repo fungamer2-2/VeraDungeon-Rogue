@@ -42,6 +42,8 @@ class Monster(Entity):
 		super().__init__(g)
 		if ranged is None:
 			ranged = one_in(5)
+		if not isinstance(HP, int):
+			raise ValueError(f"HP must be an integer, got {repr(HP)} instead")
 		self.HP = HP
 		self.MAX_HP = HP
 		self.name = name
@@ -909,7 +911,7 @@ class Wight(Monster):
 	DEX = 14
 	WIS = 13
 	to_hit = 4
-	armor = 2
+	armor = 2	
 	passive_perc = 13
 	symbol = "T"
 	weapon = Longsword
@@ -941,7 +943,7 @@ class Sasquatch(Monster):
 	]
 		
 	def __init__(self, g):
-		super().__init__(g, "sasquatch", "Q", 118, False)
+		super().__init__(g, "sasquatch", 118, False)
 
 class ScorpionClaw(ClawGrapple):
 	

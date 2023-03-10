@@ -106,7 +106,7 @@ if __name__ == "__main__":
 						g.msg_cursor = limit
 					refresh = True
 				elif char == "f": #View info of monster types in view
-					fov_mons = list(g.player.monsters_in_fov())
+					fov_mons = list(g.player.monsters_in_fov(clairvoyance=True))
 					refresh = True
 					if not fov_mons:
 						g.print_msg("You don't see any monsters right now")
@@ -262,7 +262,7 @@ if __name__ == "__main__":
 						passives = g.player.calc_ring_passives()
 						if passives:
 							g.print_msg("Your rings are providing the following passive bonuses:")
-							keys = sorted(passives.keys(), key=lambda k: k.lower)
+							keys = sorted(passives.keys(), key=lambda k: k.lower())
 							g.print_msg(", ".join(f"+{passives[k]} {'to-hit' if k == 'to_hit' else k}" for k in keys))
 					else:
 						g.print_msg("You aren't wearing any rings.")
