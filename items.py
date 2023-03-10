@@ -134,7 +134,9 @@ class ConfusionScroll(Scroll):
 		g = player.g
 		g.print_msg("You read a scroll of confusion. The scroll crumbles to dust.")
 		for m in player.monsters_in_fov():
-			if dice(1, 20) + calc_mod(m.WIS) >= 15:
+			if m.is_eff_immune("Confused"):
+				g.print_msg(f"The {m.name} is unaffected.")
+			elif dice(1, 20) + calc_mod(m.WIS) >= 15:
 				g.print_msg(f"The {m.name} resists.")
 			else:
 				g.print_msg(f"The {m.name} is confused!")
@@ -186,7 +188,7 @@ class StunScroll(Scroll):
 		random.shuffle(seen)
 		affects = seen[:random.randint(1, len(seen))]
 		for m in affects:
-			if m.HP <= random.randint(125, 175):
+			if m.HP <= random.randint(125, 175) and not m.is_eff_immune("Stunned"):
 				g.print_msg(f"The {m.name} is stunned!")
 				m.gain_effect("Stunned", random.randint(6, 22))
 			else:
@@ -634,7 +636,9 @@ class WandOfFear(Wand):
 	
 	def wand_effect(self, player, target):
 		g = player.g
-		if dice(1, 20) + calc_mod(target.WIS) >= 15:
+		if target.is_eff_immune("Frightened"):
+			g.print_msg(f"The {target.name} is unaffected.")
+		elif dice(1, 20) + calc_mod(target.WIS) >= 15:
 			g.print_msg(f"The {target.name} resists.")
 		else:
 			g.print_msg(f"The {target.name} is frightened!")

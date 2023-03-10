@@ -344,14 +344,14 @@ class Game:
 				)
 				place_item(typ)
 			
-			if x_in_y(3, 8):
+			if x_in_y(2, 5):
 				typ = rand_weighted(
 					(StunScroll, 2),
-					(TeleportScroll, 4),
+					(TeleportScroll, 3),
 					(SleepScroll, 2),
 					(ConfusionScroll, 3),
 					(SummonScroll, 2),
-					(EnchantScroll, 2)
+					(EnchantScroll, 4)
 				)
 				place_item(typ)
 				

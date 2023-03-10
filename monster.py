@@ -34,6 +34,7 @@ class Monster(Entity):
 	beast = True
 	symbol = "?"
 	weapon = None
+	eff_immunities = set()
 	
 	#Monster traits
 	rubbery = False
@@ -89,6 +90,9 @@ class Monster(Entity):
 			self.energy -= 30
 			return True
 		return False
+		
+	def is_eff_immune(self, eff):
+		return eff in self.eff_immunities
 		
 	def get_ac(self, avg=False):
 		return 10 + calc_mod(self.DEX, avg)
