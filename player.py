@@ -865,7 +865,7 @@ class Player(Entity):
 		while True:
 			menu.clear_msg()
 			menu.add_text("Which item would you like to use?")
-			menu.add_text("Use the w and s keys to scroll")
+			menu.add_text("Use the w and s keys to scroll, press Enter to cancel")
 			menu.add_line()
 			num_display = min(len(chars), max_lines - 4) - 1
 			scroll_limit = max(0, len(strings) - num_display)
