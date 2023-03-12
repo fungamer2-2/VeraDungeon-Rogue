@@ -639,7 +639,9 @@ class SpelllAttack:
 		self.eff_type = efftype #Can be "cone", "blast", "ray", or None
 		self.range = range
 	
-	
+	def on_hit_effect(self, target):
+		pass
+		
 #Balance:
 #2x HP and damage from DnD
 #(A lot of these are based on DnD monsters)							

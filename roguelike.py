@@ -37,9 +37,6 @@ from monster import *
 
 #Plans:
 #Add spell attacks to monsters
-#Rework the "use" menu to solve the issue of not being able to see all items when you have a lot of them
-# - Add a full menu with scrolling and selection
-# - Allow returning to view the board again
 	
 
 if __name__ == "__main__":		
@@ -163,43 +160,7 @@ if __name__ == "__main__":
 							g.print_msg(string)
 				elif char == "u": #Use an item
 					if g.player.inventory:
-						g.print_msg("Which item would you like to use?")
-						inv = g.player.inventory[:]
-						d = {}
-						for item in inv:
-							name = item.name
-							if isinstance(item, Wand):
-								name += f" - {item.charges} charges"
-							if name not in d:
-								d[name] = [0, item]
-							d[name][0] += 1
-						strings = []
-						choices = []
-						for i, name in enumerate(sorted(d.keys())):
-							n = name
-							num, item = d[name]
-							if num > 1:
-								n += f" ({num})"
-							strings.append(f"{i+1}. {n}")
-							choices.append(item)
-						g.print_msg("Enter a number")
-						g.print_msg("You have: " + ", ".join(strings))
-						num = g.input()
-						try:
-							num = int(num)
-						except ValueError:
-							g.print_msg("You didn't enter a number.")
-						else:
-							if num <= 0 or num > len(strings):
-								g.print_msg(f"Invalid number. Must be between 1 and {len(strings)}")
-							else:
-								item = choices[num - 1]
-								result = item.use(g.player)
-								if result is not False: #False to not use time up a turn or the item
-									if result is not None: #None uses a turn without removing the item
-										g.player.inventory.remove(item)
-									g.player.energy -= g.player.get_speed()
-						refresh = True
+						g.player.use_item()
 					else:
 						g.print_msg("You don't have anything to use.")
 						refresh = True

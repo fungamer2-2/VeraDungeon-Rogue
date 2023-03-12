@@ -136,47 +136,33 @@ class Game:
 	def maybe_load_game(self):
 		if not self.has_saved_game():
 			return
-		size = get_terminal_size()
-		termwidth = size.columns
-		msg = []
-		def add_text(txt=""):
-			nonlocal msg
-			txt = str(txt)
-			msg += textwrap.wrap(txt, termwidth)
-		def add_line():
-			msg.append("")
-		
-		screen = self.screen
-		
+		menu = GameTextMenu(self)	
 		while True:
-			msg.clear()
-			add_text("Continue Saved Game")
-			add_line()
-			add_text("You have a saved game.")
-			add_line()
-			add_text("Press 1 to load saved game.")
-			add_text("Press 2 to start a new game.")
-			screen.clear()
-			screen.addstr(0, 0, "\n".join(msg))
-			screen.refresh()
-			while (user := chr(screen.getch())) not in ["1", "2"]: pass
+			menu.clear_msg()
+		
+			menu.add_text("Continue Saved Game")
+			menu.add_line()
+			menu.add_text("You have a saved game.")
+			menu.add_line()
+			menu.add_text("Press 1 to load saved game.")
+			menu.add_text("Press 2 to start a new game.")
+			menu.display()
+			while (user := chr(menu.getch())) not in ["1", "2"]: pass
 			if user == "1":
 				self.load_game()
 				break
 			else:
-				msg.clear()
-				add_text("Really start a new game? All progress will be lost!")
-				add_line()
-				add_text("Enter Y or N")
-				screen.clear()
-				screen.addstr(0, 0, "\n".join(msg))
-				screen.refresh()
-				while (newgame := chr(screen.getch()).upper()) not in ["Y", "N"]: pass
+				menu.clear_msg()
+				menu.add_text("Really start a new game? All progress will be lost!")
+				menu.add_line()
+				menu.add_text("Enter Y or N")
+				menu.display()
+				while (newgame := chr(menu.getch()).upper()) not in ["Y", "N"]: pass
 				if newgame == "Y":
 					self.delete_saved_game()
 					break
 				
-		self.draw_board()
+		menu.close()
 		
 	def game_over(self):
 		menu = GameTextMenu(self)				

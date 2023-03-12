@@ -3,7 +3,8 @@ from collections import defaultdict
 from utils import *
 
 from entity import Entity
-from items import Wand, Weapon, UNARMED
+from items import *
+from os import get_terminal_size
 
 class Player(Entity):
 	
@@ -833,4 +834,72 @@ class Player(Entity):
 				tile.symbol = ">"
 				tile.stair = True
 				break
-		
+	
+	def use_item(self):
+		from gameobj import GameTextMenu
+		menu = GameTextMenu(self.g)
+		max_lines = get_terminal_size().lines	
+		scroll = 0
+		items = self.inventory[:]
+		d = {}
+		for item in items:
+			name = item.name
+			if isinstance(item, Wand):
+				name += f" - {item.charges} charges"
+			elif isinstance(item, Ring) and item in self.worn_rings:
+				name += " (worn)"
+			if name not in d:
+				d[name] = [0, item]
+			d[name][0] += 1
+		strings = []
+		choices = []
+		for i, name in enumerate(sorted(d.keys())):
+			n = name
+			num, item = d[name]
+			if num > 1:
+				n += f" ({num})"
+			strings.append(n)
+			choices.append(item)
+		shown_return_msg = False
+		chars = "1234567890abcdefghijklmnop"
+		while True:
+			menu.clear_msg()
+			menu.add_text("Which item would you like to use?")
+			menu.add_text("Use the w and s keys to scroll")
+			menu.add_line()
+			num_display = min(len(chars), max_lines - 4) - 1
+			scroll_limit = max(0, len(strings) - num_display)
+			n = min(len(strings), num_display)
+			padsize = min(30, get_terminal_size().columns)
+			for i in range(n):
+				string = strings[i+scroll].ljust(padsize)
+				if i == 0 and scroll > 0:
+					string += " (↑)"
+				if i == n - 1 and scroll < scroll_limit:
+					string += " (↓)"
+				menu.add_text(f"{chars[i]} - {string}")
+			menu.add_line()
+			menu.display()
+			choice = menu.getch()
+			char = chr(choice)
+			if char == "w":
+				if scroll > 0:
+					scroll -= 1
+			elif char == "s":
+				scroll += 1	
+				if scroll > scroll_limit:
+					scroll = scroll_limit
+			elif choice == 10: #Enter:
+				break
+			elif char in chars:
+				ind = chars.index(char) 
+				if ind < num_display:
+					item = choices[ind+scroll]
+					menu.close()
+					result = item.use(self)
+					if result is not False: #False to not use time up a turn or the item
+						if result is not None: #None uses a turn without removing the item
+							self.inventory.remove(item)
+						self.energy -= self.get_speed()
+					return
+		menu.close()
