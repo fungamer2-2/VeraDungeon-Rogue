@@ -35,6 +35,13 @@ from entity import *
 from items import *
 from monster import *
 
+#Plans:
+#Add spell attacks to monsters
+#Rework the "use" menu to solve the issue of not being able to see all items when you have a lot of them
+# - Add a full menu with scrolling and selection
+# - Allow returning to view the board again
+	
+
 if __name__ == "__main__":		
 	g = Game()
 	try:
@@ -273,7 +280,7 @@ if __name__ == "__main__":
 				busy = g.player.resting or g.player.activity
 				if not busy or g.player.ticks % 10 == 0:
 					g.draw_board()
-				if not busy or g.player.ticks % 35 == 0:
+				if not busy or g.player.ticks % 40 == 0:
 					g.save_game()
 			elif refresh:
 				g.draw_board()

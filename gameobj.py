@@ -294,10 +294,9 @@ class Game:
 			m.HP = m.MAX_HP = new_HP
 			if m.place_randomly():
 				if one_in(2) and x_in_y(6, self.level):
-					fov = self.player.fov
 					los_tries = 100
 					while los_tries > 0:
-						if (m.x, m.y) not in fov:
+						if not self.player.sees((m.x, m.y)):
 							break
 						m.place_randomly()
 						los_tries -= 1
@@ -421,7 +420,7 @@ class Game:
 	
 	def print_msg_if_sees(self, pos, msg, color=None):
 		assert len(pos) == 2 and type(pos) == tuple
-		if pos in self.player.fov:
+		if self.player.sees(pos, clairv=True):
 			self.print_msg(msg, color=color)
 			
 	def print_msg(self, msg, color=None):
@@ -444,6 +443,7 @@ class Game:
 		screen = self.screen
 		board = self.board
 		screen.clear()
+		
 		p = self.player
 		hp_str = f"HP {p.HP}/{p.get_max_hp()}"
 		c = 0
@@ -451,8 +451,30 @@ class Game:
 			c = curses.color_pair(1) | curses.A_BOLD
 		elif p.HP <= p.get_max_hp()//4:
 			c = curses.color_pair(3) 
+		width = get_terminal_size().columns
 		screen.addstr(0, 0, hp_str, c)
 		screen.addstr(0, len(hp_str), f" | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
+		wd = min(width, 60)
+		str_string = f"STR {p.STR}"
+		screen.addstr(0, wd - len(str_string), str_string, self._stat_mod_color(p.mod_str))
+		dex_string = f"DEX {p.DEX}"
+		screen.addstr(1, wd - len(dex_string), dex_string, self._stat_mod_color(p.mod_dex))
+		dmgdice = p.weapon.dmg
+		X = dmgdice.num
+		Y = dmgdice.sides
+		w = f"{p.weapon.name} ({X}d{Y})"
+		screen.addstr(2, wd - len(w), w)
+		armor = self.player.armor
+		if armor:
+			ar_str = f"{armor.name} ({armor.protect})"
+			screen.addstr(3, wd - len(ar_str), ar_str)
+		detect = p.detectability()
+		if detect is not None:
+			stealth = round(1/max(detect, 0.01) - 1, 1)
+			det_str = f"{stealth} stealth"
+			screen.addstr(4, wd - len(det_str), det_str)
+		
+		
 		fov = self.player.fov.copy()
 		if self.player.has_effect("Clairvoyance"):
 			for point in self.board.get_in_circle((self.player.x, self.player.y), 8):
@@ -540,7 +562,7 @@ class Game:
 				screen.addstr(y+offset, x, " ", curses.color_pair(2) | curses.A_REVERSE)
 			except curses.error:
 				pass
-		width = get_terminal_size().columns
+		
 		max_lines = self.get_max_lines()
 		messages = list(islice(self.msg_list, self.msg_cursor, self.msg_cursor+self.get_max_lines()))
 		for i, msg in enumerate(messages):
@@ -554,25 +576,6 @@ class Game:
 				screen.addstr(board.rows + i + offset + 1, 0, message, c)
 			except:
 				pass
-		wd = min(width, 60)
-		str_string = f"STR {p.STR}"
-		screen.addstr(0, wd - len(str_string), str_string, self._stat_mod_color(p.mod_str))
-		dex_string = f"DEX {p.DEX}"
-		screen.addstr(1, wd - len(dex_string), dex_string, self._stat_mod_color(p.mod_dex))
-		dmgdice = p.weapon.dmg
-		X = dmgdice.num
-		Y = dmgdice.sides
-		w = f"{p.weapon.name} ({X}d{Y})"
-		screen.addstr(2, wd - len(w), w)
-		armor = self.player.armor
-		if armor:
-			ar_str = f"{armor.name} ({armor.protect})"
-			screen.addstr(3, wd - len(ar_str), ar_str)
-		detect = p.detectability()
-		if detect is not None:
-			stealth = round(1/max(detect, 0.01) - 1, 1)
-			det_str = f"{stealth} stealth"
-			screen.addstr(4, wd - len(det_str), det_str)
 		
 		try:
 			screen.move(board.rows + offset, 0)

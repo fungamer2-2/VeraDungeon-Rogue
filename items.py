@@ -623,7 +623,7 @@ class PolymorphWand(Wand):
 	
 	def wand_effect(self, player, target):
 		g = player.g
-		if dice(1, 20) + calc_mod(target.WIS) >= 15:
+		if target.saving_throw(target.WIS, 15):
 			g.print_msg(f"The {target.name} resists.")
 		else:
 			target.polymorph()
@@ -638,7 +638,7 @@ class WandOfFear(Wand):
 		g = player.g
 		if target.is_eff_immune("Frightened"):
 			g.print_msg(f"The {target.name} is unaffected.")
-		elif dice(1, 20) + calc_mod(target.WIS) >= 15:
+		elif target.saving_throw(target.WIS, 15):
 			g.print_msg(f"The {target.name} resists.")
 		else:
 			g.print_msg(f"The {target.name} is frightened!")
@@ -652,9 +652,8 @@ class LightningWand(Wand):
 	
 	def wand_effect(self, player, target):
 		g = player.g
-		val = calc_mod(target.DEX)
 		numdice = 8
-		if not target.has_effect("Paralyzed") and dice(1, 20) + val >= 15:
+		if not target.has_effect("Paralyzed") and target.saving_throw(target.DEX, 15):
 			numdice = 4
 			g.print_msg(f"The {target.name} partially resists.")
 		damage = target.apply_armor(dice(numdice, 6))
@@ -667,6 +666,8 @@ class LightningWand(Wand):
 		g.print_msg(msg)
 		if target.HP <= 0:
 			player.defeated_monster(target)
+		else:
+			target.maybe_split(damage, 6)
 
 class Ring(Item):
 	description = "This is a ring that can provide a passive bonus when equipped."

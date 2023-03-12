@@ -338,6 +338,19 @@ class Player(Entity):
 	def has_effect(self, name):
 		return name in self.effects
 		
+	def sees(self, pos, clairv=False):
+		clairv = clairv and self.has_effect("Clairvoyance")
+		if pos in self.fov:
+			return True
+		elif clairv:
+			x, y = pos
+			dx = self.x - x 
+			dy = self.y - y
+			dist = math.sqrt(dx**2 + dy**2)
+			return round(dist) <= 8
+		else:
+			return False
+		
 	def monsters_in_fov(self, include_friendly=False, clairvoyance=False):
 		if clairvoyance:
 			clairvoyance = self.has_effect("Clairvoyance")
@@ -517,15 +530,13 @@ class Player(Entity):
 				else:
 					g.print_msg(f"The {item.name} hits the {target.name} but does no damage.")
 			else:
-				target.HP -= damage
 				msg = f"The {item.name} hits the {target.name} for {damage} damage."
-				if target.HP > 0:
-					msg += f" Its HP: {target.HP}/{target.MAX_HP}"
+				if target.HP > damage: #Only print the HP message if the attack didn't kill them
+					msg += f" Its HP: {target.HP-damage}/{target.MAX_HP}"
 				self.g.print_msg(msg)
 				if crit:
 					self.g.print_msg("Critical!", "green")
-				if target.HP <= 0:
-					self.defeated_monster(target)
+				target.take_damage(damage, self)
 		else:
 			g.print_msg(f"The {item.name} misses the {target.name}.")
 		g.spawn_item(item.__class__(), (target.x, target.y))	
@@ -738,20 +749,21 @@ class Player(Entity):
 			dam = mon.apply_armor(dam, 1+crit)
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
 			dam = max(dam, min_dam)
+			dmgtype = self.weapon.dmg_type
 			if mon.rubbery:
-				if self.weapon.dmg_type == "bludgeon":
+				if dmgtype == "bludgeon":
 					dam = binomial(dam, dam, mon.HP)
-				elif self.weapon.dmg_type == "slash":
+				elif dmgtype == "slash":
 					dam = binomial(dam, 50)
-			mon.HP -= dam
+			
 			if dam > 0:
 				msg = f"You hit the {mon.name} for {dam} damage."
-				if mon.HP > 0:
-					msg += f" Its HP: {mon.HP}/{mon.MAX_HP}"
+				if mon.HP > dam:
+					msg += f" Its HP: {mon.HP-dam}/{mon.MAX_HP}"
 				self.g.print_msg(msg)
 				if crit:
 					self.g.print_msg("Critical!", "green")
-			elif mon.rubbery and self.weapon.dmg_type == "bludgeon":
+			elif mon.rubbery and dmgtype == "bludgeon":
 				self.g.print_msg(f"You hit the {mon.name} but your attack bounces off of it.")
 				do_reveal = one_in(7)
 				if not self.is_unarmed() and one_in(5) and dice(1, 20) + calc_mod(self.DEX) <= 12:
@@ -769,8 +781,9 @@ class Player(Entity):
 					self.g.print_msg(f"This type of damage seems to be highly ineffective against the {mon.name}. You may need to use something sharper.")
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
-			if mon.HP <= 0:
-				self.defeated_monster(mon)
+			mon.take_damage(dam, self)
+			if dmgtype == "slash":
+				mon.maybe_split(dam, 2)
 			self.adjust_duration("Invisible", -random.randint(0, 6))
 			if not sneak_attack:
 				for m in self.monsters_in_fov():

@@ -302,6 +302,9 @@ class Monster(Entity):
 				att = random.choice(attacks)
 			if att.can_use(self, player):
 				self.melee_attack(player, att)
+				
+	def saving_throw(self, stat, DC):
+		return dice(1, 20) + calc_mod(stat) >= DC
 		
 	def do_ranged_attack(self, target=None):
 		if not self.ranged:
@@ -389,7 +392,50 @@ class Monster(Entity):
 				
 	def reset_track_timer(self):
 		self.track_timer = random.randint(25, 65)
-				
+	
+	def check_split(self, chance):
+		if self.HP < random.randint(10, 20):
+			return False #No splitting if we don't have enough HP
+		if "jelly" not in self.name.lower():
+			return False
+		denom = random.randint(self.HP, self.MAX_HP)
+		return x_in_y(chance, denom)
+		
+	def maybe_split(self, dam, mult):
+		if dam <= 0:
+			return False
+		if not self.check_split(dam*mult):
+			return
+		self.HP += binomial(dam, 50)
+		if self.HP > self.MAX_HP:
+			self.HP = self.MAX_HP
+		x, y = self.x, self.y
+		neighbors = [(x+1, y), (x-1, y), (x, y+1), (x, y-1), (x+1, y+1), (x+1, y-1), (x-1, y+1), (x-1, y-1)]
+		random.shuffle(neighbors)
+		nx, ny = 0, 0
+		g = self.g
+		board = self.g.board
+		for p in neighbors:
+			nx, ny = p
+			if board.is_passable(nx, ny):
+				break
+		else:
+			return 
+		cx, cy = self.x, self.y
+		HP = random.randint(self.HP, self.MAX_HP)
+		hp1 = div_rand(HP, 2)
+		hp2 = HP - hp1
+		m1 = self.__class__(g)
+		m2 = self.__class__(g)
+		m1.HP = m1.MAX_HP = hp1
+		m2.HP = m2.MAX_HP = hp2
+		self.g.print_msg(f"The {self.name} splits into two!", "yellow")
+		self.despawn()
+		m1.place_at(x, y)
+		m2.place_at(nx, ny)
+		g.monsters.append(m1)
+		g.monsters.append(m2)
+			
 	def on_alerted(self, target=None):
 		player = self.g.player
 		self.is_aware = True
@@ -586,7 +632,14 @@ class Monster(Entity):
 								self.move(*d)
 								self.dir = d
 			
-
+class SpelllAttack:
+	
+	def __init__(self, to_hit, efftype, range):
+		self.to_hit = to_hit
+		self.eff_type = efftype #Can be "cone", "blast", "ray", or None
+		self.range = range
+	
+	
 #Balance:
 #2x HP and damage from DnD
 #(A lot of these are based on DnD monsters)							
@@ -604,8 +657,7 @@ class Bat(Monster):
 		#name, HP, ranged, ranged_dam
 		#ranged == None means there is a chance of it using a ranged attack
 		super().__init__(g, "bat", 3, False)
-
-
+	
 class Lizard(Monster):
 	min_level = 1
 	diff = 1
@@ -753,7 +805,7 @@ class GiantLizard(Monster):
 	attacks = [
 		Attack((2, 8), 4, "The {0} bites {1}")
 	]
-	
+		
 	def __init__(self, g):
 		super().__init__(g, "giant lizard", 38, False)
 
@@ -844,9 +896,36 @@ class GiantEagle(Monster):
 	def __init__(self, g):
 		super().__init__(g, "giant eagle", 52, False)
 
+class JellyAcidAttack(Attack):
+	
+	def __init__(self):
+		super().__init__((4, 6), 6, "The {0} attacks {1}")
+	
+	def on_hit(self, player, mon, dmg):
+		g = player.g
+		self.g.print_msg("The acid burns!", "red")
+		player.take_damage(dice(1, 12))
+
+class OchreJelly(Monster):
+	diff = 6
+	speed = 10	
+	DEX = 6
+	WIS = 6
+	min_level = 18
+	to_hit = 6
+	passive_perc = 8
+	beast = False
+	symbol = "H"
+	eff_immunities = {"Charmed", "Frightened"}
+	attacks = [
+		JellyAcidAttack()
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "ochre jelly", 90, False)
+
 class Ogre(Monster):
 	diff = 6
-	AC = 9
 	DEX = 8
 	WIS = 7
 	min_level = 20
