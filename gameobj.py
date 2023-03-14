@@ -119,7 +119,7 @@ class Game:
 		menu.add_text("f - view info about monsters currently in view")
 		menu.add_text("r - rest until HP is recovered")
 		menu.add_text("p - pick up item")
-		menu.add_text("u - use item")
+		menu.add_text("i - view inventory")
 		menu.add_text("space - go down to next level (when standing on a \">\" symbol)")
 		menu.add_text("? - brings up this menu again")
 		menu.add_text(". - wait a turn")

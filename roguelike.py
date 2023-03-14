@@ -158,11 +158,14 @@ if __name__ == "__main__":
 							if m.armor > 0:
 								string += f" | Armor: {m.armor}"
 							g.print_msg(string)
-				elif char == "u": #Use an item
+				elif char == "u": #Use an item - migrated to Inventory menu
+					g.print_msg("The \"Use\" keybind has been migrated to the \"Inventory\" keybind. Use the \"i\" key instead to open the inventory.")
+					refresh = True
+				elif char == "i": #Inventory menu
 					if g.player.inventory:
-						g.player.use_item()
+						g.player.inventory_menu()
 					else:
-						g.print_msg("You don't have anything to use.")
+						g.print_msg("You don't have anything in your inventory.")
 						refresh = True
 				elif char == "r" and g.player.HP < g.player.MAX_HP: #Rest and wait for HP to recover 
 					aware_count = 0

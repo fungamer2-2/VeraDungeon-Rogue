@@ -837,7 +837,7 @@ class Player(Entity):
 				tile.stair = True
 				break
 	
-	def use_item(self):
+	def inventory_menu(self):
 		from gameobj import GameTextMenu
 		menu = GameTextMenu(self.g)
 		max_lines = get_terminal_size().lines	
@@ -866,7 +866,7 @@ class Player(Entity):
 		chars = "1234567890abcdefghijklmnop"
 		while True:
 			menu.clear_msg()
-			menu.add_text("Which item would you like to use?")
+			menu.add_text("Select which item?")
 			menu.add_text("Use the w and s keys to scroll, press Enter to cancel")
 			menu.add_line()
 			num_display = min(len(chars), max_lines - 3)
@@ -897,11 +897,32 @@ class Player(Entity):
 				ind = chars.index(char) 
 				if ind < num_display:
 					item = choices[ind+scroll]
-					menu.close()
-					result = item.use(self)
-					if result is not False: #False to not use time up a turn or the item
-						if result is not None: #None uses a turn without removing the item
-							self.inventory.remove(item)
-						self.energy -= self.get_speed()
-					return
+					menu.clear_msg()
+					menu.add_text(item.name)
+					menu.add_line()
+					menu.add_text(item.description)
+					if isinstance(item, Weapon):
+						if item.heavy:
+							menu.add_text("This weapon is heavy, so attacks are a bit less accurate.")
+						if item.finesse:
+							menu.add_text("This weapon is designed in a way that allows it to adapt to your character's style. Attack and damage rolls use the higher of your STR or DEX.")
+					elif isinstance(item, Armor):
+						if item.stealth_pen > 0:
+							menu.add_text(f"This armor tends to make some noise when moving. -{item.stealth_pen} to stealth checks.")
+					menu.add_line()
+					menu.add_text("u - use item")
+					menu.add_text("Enter - return")
+					menu.display()
+					while True:
+						c = menu.getch()
+						if c == 10:
+							break
+						elif chr(c) == "u":
+							menu.close()
+							result = item.use(self)
+							if result is not False: #False to not use time up a turn or the item
+								if result is not None: #None uses a turn without removing the item
+									self.inventory.remove(item)
+								self.energy -= self.get_speed()
+							return
 		menu.close()
