@@ -262,7 +262,7 @@ class OpenSet:
 	def __bool__(self):
 		return len(self._data) > 0
 		
-def pathfind(board, start, end, rand=False):
+def pathfind(board, start, end, *, rand=False):
 	#Actual A* Search algorithm
 	def h(a, b):
 		return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -302,7 +302,8 @@ def pathfind(board, start, end, rand=False):
 			random.shuffle(neighbors)
 		
 		for n in neighbors:
-			t = gScore[curr] + 1 
+			cost = 1
+			t = gScore[curr] + cost
 			if t < gScore[n]:
 				came_from[n] = curr
 				gScore[n] = t

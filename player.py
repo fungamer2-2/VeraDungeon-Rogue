@@ -619,6 +619,8 @@ class Player(Entity):
 		elif self.ticks % 6 == 0:
 			if self.hp_drain > 0 and one_in(4):
 				self.hp_drain -= 1
+				if self.hp_drain == 0:
+					self.g.print_msg("You have fully recovered from drain.", "green")
 		for e in list(self.effects.keys()):
 			self.adjust_duration(e, -1)
 		mod = self.stealth_mod()
@@ -867,7 +869,7 @@ class Player(Entity):
 			menu.add_text("Which item would you like to use?")
 			menu.add_text("Use the w and s keys to scroll, press Enter to cancel")
 			menu.add_line()
-			num_display = min(len(chars), max_lines - 4) - 1
+			num_display = min(len(chars), max_lines - 3)
 			scroll_limit = max(0, len(strings) - num_display)
 			n = min(len(strings), num_display)
 			padsize = min(30, get_terminal_size().columns)
