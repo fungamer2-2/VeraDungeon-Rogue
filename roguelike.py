@@ -217,11 +217,6 @@ if __name__ == "__main__":
 						curses.nocbreak()
 						curses.echo()
 						exit()
-				elif char == "j": #View descriptions of items on this tile
-					items = g.board.get(g.player.x, g.player.y).items
-					for item in items:
-						g.print_msg(f"{item.name} - {item.description}")
-					refresh = True
 				elif char == "t":
 					g.player.throw_item()
 					refresh = True
