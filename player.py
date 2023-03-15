@@ -902,10 +902,18 @@ class Player(Entity):
 					menu.add_line()
 					menu.add_text(item.description)
 					if isinstance(item, Weapon):
+						dmg = item.dmg
+						X, Y = dmg.num, dmg.sides
+						menu.add_text(f"This weapon deals {X}d{Y} base damage.")
 						if item.heavy:
 							menu.add_text("This weapon is heavy, so attacks are a bit less accurate.")
 						if item.finesse:
 							menu.add_text("This weapon is designed in a way that allows it to adapt to your character's style. Attack and damage rolls use the higher of your STR or DEX.")
+						if item.crit_thresh < 20:
+							diff = 21 - item.crit_thresh 
+							menu.add_text(f"Attacks with this weapon are {diff}x more likely to be a critical hit.")
+						if item.crit_mult > 2:
+							menu.add_text(f"This weapon deals {item.crit_mult}x damage on a critical hit.")
 					elif isinstance(item, Armor):
 						if item.stealth_pen > 0:
 							menu.add_text(f"This armor tends to make some noise when moving. -{item.stealth_pen} to stealth checks.")
