@@ -1,10 +1,12 @@
 # VeraDungeon Rogue
-A roguelike game in Python
+A terminal-based CLI roguelike game in Python
 
 Discord Server: https://discord.gg/dKRGTgxT65
 
 Current version: 0.5 <br />
 (Note: This is currently a work in progress)
+
+![image](./images/roguelike_image.png)
 
 ### How to run the game<br />
 - Install Python from https://www.python.org/<br />
