@@ -5,7 +5,7 @@ from items import *
 
 class Attack:
 	
-	def __init__(self, dmg, to_hit, msg="The {0} attacks you"):
+	def __init__(self, dmg, to_hit, msg="The {0} attacks {1}"):
 		self.dmg = dmg
 		self.to_hit = to_hit
 		self.msg = msg
@@ -86,6 +86,7 @@ class Monster(Entity):
 		self.check_timer = random.randint(1, 3)
 	
 	def move(self, dx, dy):
+		board = self.g.board
 		if super().move(dx, dy):
 			self.energy -= 30
 			return True
@@ -469,7 +470,7 @@ class Monster(Entity):
 		if self.g.board.line_of_sight((self.x, self.y), (target.x, target.y)):
 			return True
 		return self.g.board.line_of_sight((target.x, target.y), (self.x, self.y))
-	
+		
 	def actions(self):
 		if self.has_effect("Asleep") or self.has_effect("Stunned") or self.has_effect("Paralyzed"):
 			self.energy = 0
@@ -571,14 +572,7 @@ class Monster(Entity):
 				axdist = abs(xdist)
 				aydist = abs(ydist)
 				old = self.energy
-				if axdist > aydist or (axdist == aydist and one_in(2)):
-					maintains = target is not player or (self.x + dx, self.y) in player.fov #Choose a direction that doesn't break line of sight
-					if not (maintains and dx != 0 and self.move(dx, 0)) and dy != 0:
-						self.move(0, dy)
-				else:
-					maintains = target is not player or (self.x, self.y + dy) in player.fov
-					if not (maintains and dy != 0 and self.move(0, dy)) and dx != 0:
-						self.move(dx, 0)
+				self.path_towards(target.x, target.y)
 				moved = self.energy < old
 				if not moved and self.distance(target) <= 4 and one_in(5):
 					could_route_around = self.g.monster_at(self.x+dx, self.y) or self.g.monster_at(self.x, self.y+dy)
@@ -659,7 +653,7 @@ class Bat(Monster):
 		#name, HP, ranged, ranged_dam
 		#ranged == None means there is a chance of it using a ranged attack
 		super().__init__(g, "bat", 3, False)
-	
+
 class Lizard(Monster):
 	min_level = 1
 	diff = 1
@@ -880,6 +874,34 @@ class BrownBear(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "brown bear", 68, False)
+
+class SpecterDrain(Attack):
+	
+	def __init__(self):
+		super().__init__((3, 6), 4)
+		
+	def on_hit(self, player, mon, dmg):
+		g = player.g
+		g.print_msg("Your life force is drained!")
+		player.drain(random.randint(div_rand(dmg, 2), dmg))
+
+class Specter(Monster):
+	diff = 5
+	speed = 50
+	min_level = 18
+	DEX = 14
+	WIS = 10
+	to_hit = 4
+	passive_perc = 10
+	symbol = "t"
+	attacks = [
+		SpecterDrain()
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "specter", 44, False)
+
+
 
 class GiantEagle(Monster):
 	diff = 5

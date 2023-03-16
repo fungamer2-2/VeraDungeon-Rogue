@@ -384,9 +384,9 @@ class Game:
 		self.draw_board()
 		self.refresh_cache()
 	
-	def monster_at(self, x, y):
+	def monster_at(self, x, y, include_player=False):
 		if (x, y) == (self.player.x, self.player.y):
-			return False
+			return include_player
 		return self.board.get_cache(x, y)
 		
 	def get_monster(self, x, y):
@@ -438,7 +438,8 @@ class Game:
 			c = curses.color_pair(3) 
 		width = get_terminal_size().columns
 		screen.addstr(0, 0, hp_str, c)
-		screen.addstr(0, len(hp_str), f" | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
+		dr = f" (Drain -{p.hp_drain})" if p.hp_drain > 0 else ""
+		screen.addstr(0, len(hp_str), f"{dr} | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
 		wd = min(width, 60)
 		str_string = f"STR {p.STR}"
 		screen.addstr(0, wd - len(str_string), str_string, self._stat_mod_color(p.mod_str))

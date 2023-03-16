@@ -103,7 +103,9 @@ class Entity:
 		self.curr_target = (x, y)
 		self.curr_path = deque(path[1:])
 		newX, newY = self.curr_path.popleft()
-		self.move_to(newX, newY)
+		dx = newX - currX
+		dy = newY - currY
+		self.move(dx, dy)
 		
 	def set_path(self, path):
 		self.curr_path = deque(path)
@@ -161,9 +163,12 @@ class Entity:
 		self.x, self.y = other.x, other.y
 		other.x, other.y = tmp
 		
+	def can_move(self, x, y):
+		return self.g.board.is_passable(x, y)
+		
 	def move_to(self, x, y):
 		board = self.g.board
-		if board.is_passable(x, y):
+		if self.can_move(x, y):
 			oldpos = (self.x, self.y)
 			self.x = x
 			self.y = y
