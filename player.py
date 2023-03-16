@@ -164,6 +164,7 @@ class Player(Entity):
 			return
 		self.hp_drain += amount
 		self.HP = min(self.HP, self.get_max_hp())
+		self.g.print_msg(f"Your life force is drained!")
 		self.interrupt()
 		if self.get_max_hp() <= 0:
 			self.g.print_msg("You have died!", "red")
@@ -677,7 +678,7 @@ class Player(Entity):
 			adv = True
 		finesse = self.weapon.finesse
 		unarmed = self.weapon is UNARMED
-		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) >= mon.passive_perc
+		sneak_attack = adv and dice(1, 20) + calc_mod(self.DEX) + self.passives["stealth"] >= mon.passive_perc
 		chance = 3
 		if unarmed:
 			chance -= 1

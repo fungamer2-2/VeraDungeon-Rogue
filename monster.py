@@ -594,7 +594,7 @@ class Monster(Entity):
 					if (self.x, self.y) == self.last_seen and check:
 						sees_you = self.sees_player()
 						#If we reach the target position and still don't see the player, roll a stealth check to continue tracking the player
-						if sees_you or dice(1, 20) + calc_mod(player.DEX) < 14 + calc_mod(self.WIS):
+						if sees_you or dice(1, 20) + calc_mod(player.DEX) + player.passives["stealth"] < 14 + calc_mod(self.WIS):
 							self.last_seen = (player.x, player.y)
 						else:
 							self.stop_tracking()
@@ -878,12 +878,10 @@ class BrownBear(Monster):
 class SpecterDrain(Attack):
 	
 	def __init__(self):
-		super().__init__((3, 6), 4)
+		super().__init__((3, 8), 4)
 		
 	def on_hit(self, player, mon, dmg):
-		g = player.g
-		g.print_msg("Your life force is drained!")
-		player.drain(random.randint(div_rand(dmg, 2), dmg))
+		player.drain(random.randint(1, dmg))
 
 class Specter(Monster):
 	diff = 5
@@ -1007,8 +1005,6 @@ class WightLifeDrain(Attack):
 		super().__init__((2, 6), 4, "The {0} uses life drain")
 	
 	def on_hit(self, player, mon, dmg):
-		g = player.g
-		g.print_msg("Your life force is drained!", "red")
 		player.drain(dmg)
 
 class Wight(Monster):
