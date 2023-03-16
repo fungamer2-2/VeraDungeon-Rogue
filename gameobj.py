@@ -340,20 +340,20 @@ class Game:
 				place_item(typ)
 				
 			types = [
-				(Club, 60),
-				(Dagger, 30),
-				(Greatclub, 30),
-				(Handaxe, 12),
-				(Javelin, 12),
-				(Mace, 12),
-				(Battleaxe, 6),
-				(Shortsword, 6),
-				(Longsword, 4),
-				(Morningstar, 4),
-				(Glaive, 3),
-				(Greataxe, 2),
+				(Club, 65),
+				(Dagger, 35),
+				(Greatclub, 35),
+				(Handaxe, 17),
+				(Javelin, 17),
+				(Mace, 17),
+				(Battleaxe, 11),
+				(Shortsword, 11),
+				(Longsword, 9),
+				(Morningstar, 9),
+				(Glaive, 8),
+				(Greataxe, 7),
 			]
-			types = [t for t in types if t[1] >= int((60/self.level)**0.75)]
+			types = [t for t in types if t[1] >= int(65/self.level)]
 			num = binomial(random.randint(2, 3), 50)
 			for _ in range(num):
 				place_item(rand_weighted(*types))
