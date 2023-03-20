@@ -1,4 +1,4 @@
-import random
+import random, time
 from utils import *
 from entity import Entity
 from items import *
@@ -31,6 +31,7 @@ class Monster(Entity):
 	grapple_dc = 10
 	armor = 0
 	attacks = [Attack((1, 3), 0)]
+	spells = []
 	beast = True
 	symbol = "?"
 	weapon = None
@@ -563,7 +564,16 @@ class Monster(Entity):
 			self.reset_track_timer()
 			if self.distance(target) <= 1:
 				self.energy -= self.get_speed()
-				self.do_melee_attack(target)
+				used_spell = False
+				if self.spells and one_in(6) and target is player:
+					candidates = self.spells[:]
+					random.shuffle(candidates)
+					for spell in spells:
+						if self.maybe_use_spell(target):
+							used_spell = True
+							break
+				if not used_spell:
+					self.do_melee_attack(target)
 			elif self.ranged and target is player and self.should_use_ranged():
 				self.do_ranged_attack()
 			else:
@@ -572,12 +582,22 @@ class Monster(Entity):
 				axdist = abs(xdist)
 				aydist = abs(ydist)
 				old = self.energy
-				self.path_towards(target.x, target.y)
-				moved = self.energy < old
-				if not moved and self.distance(target) <= 4 and one_in(5):
-					could_route_around = self.g.monster_at(self.x+dx, self.y) or self.g.monster_at(self.x, self.y+dy)
-					if could_route_around:
-						self.path_towards(*self.last_seen, maxlen=self.distance(target)+3)
+				used_spell = False
+				if self.spells and one_in(5) and target is player:
+					candidates = self.spells[:]
+					random.shuffle(candidates)
+					for spell in spells:
+						if self.maybe_use_spell(target):
+							used_spell = True
+							self.energy -= self.get_speed()
+							break
+				if not used_spell:
+					self.path_towards(target.x, target.y)
+					moved = self.energy < old
+					if not moved and self.distance(target) <= 4 and one_in(5):
+						could_route_around = self.g.monster_at(self.x+dx, self.y) or self.g.monster_at(self.x, self.y+dy)
+						if could_route_around:
+							self.path_towards(*self.last_seen, maxlen=self.distance(target)+3)
 		else:
 			if self.target is not player: #We lost sight of a target; go back to targeting the player
 				self.target = player
@@ -625,17 +645,82 @@ class Monster(Entity):
 								d = (-self.dir[0], -self.dir[1])
 								self.move(*d)
 								self.dir = d
+								
+	def maybe_use_spell(self, spell, target):
+		if self.distance(target, False) > spell.range:
+			return False
 			
-class SpelllAttack:
+		g = self.g
+		player = g.player
+		board = g.board
+		
+		if not spell.should_use():
+			return False
+		
+		if spell.efftype is None:
+			spell.on_hit_effect(target)
+			return True
+		if g.board.line_of_sight((self.x, self.y), (target.x, target.y)):
+			line = list(g.board.line_between((self.x, self.y), (target.x, target.y)))
+		elif g.board.line_of_sight((target.x, target.y), (self.x, self.y)):
+			line = list(g.board.line_between((target.x, target.y), (self.x, self.y)))
+			line.reverse()
+		else:
+			return False
+				
+		if spell.efftype == "blast": 
+			for x, y in line:
+				if g.monster_at(x, y):
+					return False
+			self.g.print_msg(spell.msg)
+			for x, y in line:
+			 	g.set_projectile_pos(x, y)
+			 	g.draw_board()
+			 	time.sleep(0.03)
+			g.clear_projectile()
+			spell.on_hit_effect(target)
+		elif spell.efftype == "cone":
+			x, y = self.x, self.y
+			px, py = target.x, target.y
+			dx = px - x
+			dy = py - y
+			if round(math.sqrt(dx**2 + dy**2)) > spell.range:
+				return False
+			angle = math.degrees(math.atan2(dy, dx))
+			area = list(board.get_in_cone((x, y), spell.range, angle))
+			num = 0
+			for cx, cy in area:
+				if g.monster_at(cx, cy):
+					num += 1
+			if num > 0 and x_in_y(num, num+2):
+				return False
+			g.print_msg(spell.msg)
+			for cx, cy in area:
+				g.blast.add((cx, cy))
+				if (m := g.get_monster(cx, cy)):
+					spell.on_hit_effect(m)
+				elif (player.x, player.y) == (cx, cy):
+					spell.on_hit_effect(player)
+			g.draw_board()
+			time.sleep(0.2)
+			g.blast.clear()
+			g.draw_board()
+			return True
+			
+class SpellAttack:
 	
-	def __init__(self, to_hit, efftype, range):
-		self.to_hit = to_hit
-		self.eff_type = efftype #Can be "cone", "blast", "ray", or None
+	def __init__(self, efftype, range, msg):
+		self.efftype = efftype #Can be "cone", "blast", "ray", or None
 		self.range = range
-	
+		self.msg = msg
+		
+	def should_use(self):
+		return True
+		
 	def on_hit_effect(self, target):
 		pass
 		
+
 #Balance:
 #2x HP and damage from DnD
 #(A lot of these are based on DnD monsters)							

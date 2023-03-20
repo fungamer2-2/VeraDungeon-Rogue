@@ -84,14 +84,14 @@ class Board:
 				continue	
 			yield x, y
 	
-	def get_in_cone(self, pos, radius, angle, widthdeg=60):
+	def get_in_cone(self, pos, radius, angle, widthdeg=45):
 		cx, cy = pos 
 		angle %= 360
 		for x, y in self.get_in_radius(pos, radius):
 			dx = x - cx
 			dy = y - cy
 			dist = math.sqrt(dx**2 + dy**2)
-			if round(dist) > radius:
+			if round(dist) > radius or not self.in_bounds(x, y):
 				continue
 			dir = math.degrees(math.atan2(dy, dx))
 			half = widthdeg/2

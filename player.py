@@ -786,8 +786,6 @@ class Player(Entity):
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
 			mon.take_damage(dam, self)
-			if dmgtype == "slash":
-				mon.maybe_split(dam, 2)
 			self.adjust_duration("Invisible", -random.randint(0, 6))
 			if not sneak_attack:
 				for m in self.monsters_in_fov():
