@@ -723,4 +723,4 @@ class DexterityRing(Ring):
 	def __init__(self):
 		super().__init__("ring of dexterity", "You feel like your agility has improved.", "You feel less agile.",
 			passives={"DEX": 3}
-		)		
+		)	

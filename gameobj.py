@@ -278,7 +278,7 @@ class Game:
 			new_HP = max(1, m.MAX_HP + delta)
 			m.HP = m.MAX_HP = new_HP
 			if m.place_randomly():
-				if one_in(2) and x_in_y(6, self.level):
+				if one_in(2) and x_in_y(8, self.level):
 					los_tries = 100
 					while los_tries > 0:
 						if not self.player.sees((m.x, m.y)):
@@ -288,14 +288,15 @@ class Game:
 				self.monsters.append(m)
 		
 		def place_item(typ):
-			for j in range(250):
+			for j in range(600):
 				x = random.randint(1, self.board.cols - 2)
 				y = random.randint(1, self.board.rows - 2)
 				if self.board.is_passable(x, y):
 					tile = self.board.get(x, y)
 					if not tile.items:
-						tile.items.append(typ())
-						break
+						tile.items.append(item := typ())
+						return item
+			return None
 						
 		if not one_in(8):	
 			types = [
@@ -335,7 +336,7 @@ class Game:
 					(SleepScroll, 2),
 					(ConfusionScroll, 3),
 					(SummonScroll, 2),
-					(EnchantScroll, 4)
+					(EnchantScroll, 5)
 				)
 				place_item(typ)
 				
@@ -356,7 +357,12 @@ class Game:
 			types = [t for t in types if t[1] >= int(65/self.level)]
 			num = binomial(random.randint(2, 3), 50)
 			for _ in range(num):
-				place_item(rand_weighted(*types))
+				if (weapon := place_item(rand_weighted(*types))):
+					if one_in(20):
+						for _ in range(3):
+							weapon.add_enchant()
+							if not one_in(3):
+								break
 				
 			if self.level > 1 and x_in_y(min(55 + self.level, 80), 100):
 				types = [LeatherArmor]

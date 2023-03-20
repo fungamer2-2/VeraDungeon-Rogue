@@ -164,7 +164,7 @@ class Player(Entity):
 			return
 		self.hp_drain += amount
 		self.HP = min(self.HP, self.get_max_hp())
-		self.g.print_msg(f"Your life force is drained!")
+		self.g.print_msg("Your life force is drained!", "red")
 		self.interrupt()
 		if self.get_max_hp() <= 0:
 			self.g.print_msg("You have died!", "red")
