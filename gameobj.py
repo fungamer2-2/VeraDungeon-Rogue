@@ -33,9 +33,10 @@ class GameTextMenu:
 	
 	def display(self):
 		self.screen.clear()
-		self.screen.addstr(0, 0, "\n".join(self.msg))
+		for i in range(len(self.msg)):
+			self.screen.addstr(i, 0, self.msg[i])
 		self.screen.refresh()
-		
+			
 	def close(self):
 		self.g.draw_board()
 		
@@ -261,16 +262,13 @@ class Game:
 		self.player.fov = self.player.calc_fov()
 		num = random.randint(3, 4) + random.randint(0, int(1.4*(self.level - 1)**0.65))
 		monsters = self.mon_types
+		pool = []
+		for t in monsters:
+			lev = self.level
+			if lev >= t.min_level:
+				pool.append(t)
+		assert len(pool) > 0
 		for _ in range(num):
-			pool = []
-			for t in monsters:
-				minlevel = t.min_level-1
-				thresh =  int(minlevel*1.7)
-				thresh = min(thresh, minlevel+10)
-				lev = self.level
-				if lev > random.randint(minlevel, thresh):
-					pool.append(t)
-			assert len(pool) > 0
 			typ = random.choice(pool)	
 			m = typ(self)
 			fuzz = max(1, m.MAX_HP//10)
@@ -336,9 +334,11 @@ class Game:
 					(SleepScroll, 2),
 					(ConfusionScroll, 3),
 					(SummonScroll, 2),
-					(EnchantScroll, 5)
+					(EnchantScroll, 4)
 				)
 				place_item(typ)
+			elif one_in(3):
+				place_item(EnchantScroll)
 				
 			types = [
 				(Club, 65),

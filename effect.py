@@ -50,3 +50,9 @@ class Clairvoyance(Effect):
 	
 	def __init__(self, duration):
 		super().__init__(duration, "You feel much more perceptive.", "Your clairvoyance fades.")
+
+class Confused(Effect):
+	name = "Confused"
+	
+	def __init__(self, duration):
+		super().__init__(duration, "You feel confused.", "You are no longer confused.")

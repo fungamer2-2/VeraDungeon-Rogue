@@ -159,12 +159,13 @@ class Player(Entity):
 				self.g.print_msg(f"You stop {self.activity.name}.")
 				self.activity = None
 	
-	def drain(self, amount):
+	def drain(self, amount, silent=False):
 		if amount <= 0:
 			return
 		self.hp_drain += amount
 		self.HP = min(self.HP, self.get_max_hp())
-		self.g.print_msg("Your life force is drained!", "red")
+		if not silent:
+			self.g.print_msg("Your life force is drained!", "red")
 		self.interrupt()
 		if self.get_max_hp() <= 0:
 			self.g.print_msg("You have died!", "red")
@@ -173,7 +174,6 @@ class Player(Entity):
 	def do_poison(self, amount):
 		if amount <= 0:
 			return
-		amount += random.randint(0, amount)
 		self.poison += amount
 		if self.has_effect("Rejuvenated"):
 			self.g.print_msg("The rejunenation blocks the effects of the poison in your system.")
@@ -262,6 +262,26 @@ class Player(Entity):
 			self.energy = 0
 			return False
 		board = self.g.board
+		if self.has_effect("Confused") and not one_in(4):
+			odx, ody = dx, dy
+			dirs = [(-1, 0), (1, 0), (0, 1), (0, -1)]
+			for _ in range(2):
+				dx, dy = random.choice(dirs)
+				if board.is_passable(self.x+dx, self.y+dy):
+					break
+			if not board.is_passable(self.x+dx, self.y+dy):
+				x, y = self.x + dx, self.y + dy
+				obstacle = ""
+				if board.blocks_sight(x, y):
+					obstacle = "wall"
+				elif (m := self.g.get_monster(x, y)):
+					obstacle = m.name
+				if obstacle:
+					self.g.print_msg(f"You bump into the {obstacle}.")
+					self.energy -= self.get_speed()#We bumped into something while confused
+					return
+			if one_in(3) and (odx, ody) != (dx, dy):
+				self.g.print_msg("You stumble around.")
 		adj = []
 		if (m := self.g.get_monster(self.x-1, self.y)):
 			adj.append(m)
@@ -649,7 +669,7 @@ class Player(Entity):
 		stat = self.attack_stat()
 		mod = calc_mod(stat, avg=avg)
 		if not throwing:
-			if self.weapon:
+			if self.weapon is not UNARMED:
 				if self.weapon.heavy:
 					mod -= 2
 			else:
@@ -658,6 +678,11 @@ class Player(Entity):
 		
 	def base_damage_dice(self):
 		return self.weapon.dmg
+		
+	def apply_resist(self, dam):
+		if self.has_effect("Resistance"):
+			dam = binomial(dam, 50)
+		return dam
 		
 	def get_protect(self):
 		protect = self.armor.protect if self.armor else 0
@@ -868,7 +893,8 @@ class Player(Entity):
 			menu.add_text("Select which item?")
 			menu.add_text("Use the w and s keys to scroll, press Enter to cancel")
 			menu.add_line()
-			num_display = min(len(chars), max_lines - 3)
+			num_display = min(len(chars), max_lines - 4)
+			
 			scroll_limit = max(0, len(strings) - num_display)
 			n = min(len(strings), num_display)
 			padsize = min(30, get_terminal_size().columns)

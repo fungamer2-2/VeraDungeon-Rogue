@@ -563,16 +563,17 @@ class Monster(Entity):
 			self.last_seen = (target.x, target.y)
 			self.reset_track_timer()
 			if self.distance(target) <= 1:
-				self.energy -= self.get_speed()
 				used_spell = False
 				if self.spells and one_in(6) and target is player:
 					candidates = self.spells[:]
 					random.shuffle(candidates)
-					for spell in spells:
-						if self.maybe_use_spell(target):
+					for spell in candidates:
+						if self.maybe_use_spell(spell, target):
+							self.energy -= mult_rand_frac(self.get_speed(), max(0, spell.time_cost), 100)
 							used_spell = True
 							break
-				if not used_spell:
+				if not used_spell or self.energy > 0: #If we still have enough energy points to do so, make a melee attack
+					self.energy -= self.get_speed()
 					self.do_melee_attack(target)
 			elif self.ranged and target is player and self.should_use_ranged():
 				self.do_ranged_attack()
@@ -586,14 +587,15 @@ class Monster(Entity):
 				if self.spells and one_in(5) and target is player:
 					candidates = self.spells[:]
 					random.shuffle(candidates)
-					for spell in spells:
-						if self.maybe_use_spell(target):
+					for spell in candidates:
+						if self.maybe_use_spell(spell, target):
 							used_spell = True
-							self.energy -= self.get_speed()
+							self.energy -= mult_rand_frac(self.get_speed(), max(0, spell.time_cost), 100)
 							break
 				if not used_spell:
+					oldx, oldy = self.x, self.y
 					self.path_towards(target.x, target.y)
-					moved = self.energy < old
+					moved = (self.x, self.y) != (oldx, oldy)
 					if not moved and self.distance(target) <= 4 and one_in(5):
 						could_route_around = self.g.monster_at(self.x+dx, self.y) or self.g.monster_at(self.x, self.y+dy)
 						if could_route_around:
@@ -658,6 +660,7 @@ class Monster(Entity):
 			return False
 		
 		if spell.efftype is None:
+			self.g.print_msg(spell.msg.format(self.name))
 			spell.on_hit_effect(target)
 			return True
 		if g.board.line_of_sight((self.x, self.y), (target.x, target.y)):
@@ -672,7 +675,7 @@ class Monster(Entity):
 			for x, y in line:
 				if g.monster_at(x, y):
 					return False
-			self.g.print_msg(spell.msg)
+			self.g.print_msg(spell.msg.format(self.name))
 			for x, y in line:
 			 	g.set_projectile_pos(x, y)
 			 	g.draw_board()
@@ -694,7 +697,7 @@ class Monster(Entity):
 					num += 1
 			if num > 0 and x_in_y(num, num+2):
 				return False
-			g.print_msg(spell.msg)
+			g.print_msg(spell.msg.format(self.name))
 			for cx, cy in area:
 				g.blast.add((cx, cy))
 				if (m := g.get_monster(cx, cy)):
@@ -709,10 +712,11 @@ class Monster(Entity):
 			
 class SpellAttack:
 	
-	def __init__(self, efftype, range, msg):
+	def __init__(self, efftype, range, msg, time_cost=100):
 		self.efftype = efftype #Can be "cone", "blast", "ray", or None
 		self.range = range
 		self.msg = msg
+		self.time_cost = time_cost #Percentage of a turn this uses up
 		
 	def should_use(self):
 		return True
@@ -1010,8 +1014,8 @@ class JellyAcidAttack(Attack):
 	
 	def on_hit(self, player, mon, dmg):
 		g = player.g
-		self.g.print_msg("The acid burns!", "red")
-		player.take_damage(dice(1, 12))
+		g.print_msg("The acid burns!", "red")
+		player.take_damage(player.apply_resist(dice(1, 12)))
 
 class OchreJelly(Monster):
 	diff = 6
@@ -1066,6 +1070,41 @@ class PolarBear(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "polar bear", 84, False)
+
+class NothicRotGaze(SpellAttack):
+	
+	def __init__(self):
+		super().__init__(None, 6, "The {0} gazes at you!", time_cost=40)
+	
+	def on_hit_effect(self, target):
+		if isinstance(target, Monster):
+			return
+		g = target.g
+		g.print_msg("You feel your flesh rotting.", "red")
+		dam = target.apply_resist(dice(3, 6))
+		target.take_damage(dam)
+		target.drain(dam, silent=True) 
+
+class Nothic(Monster):
+	diff = 6
+	speed = 30
+	min_level = 18
+	DEX = 16
+	WIS = 10
+	to_hit = 4
+	armor = 2
+	passive_perc = 12
+	symbol = "N"
+	attacks = [
+		Attack((2, 6), 4, "The {0} claws {1}"),
+		Attack((2, 6), 4, "The {0} claws {1}")
+	]
+	spells = [
+		NothicRotGaze()
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "nothic", 90, False)
 
 class Rhinoceros(Monster):
 	diff = 6
