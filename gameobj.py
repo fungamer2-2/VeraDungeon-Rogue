@@ -444,7 +444,10 @@ class Game:
 			c = curses.color_pair(3) 
 		width = get_terminal_size().columns
 		screen.addstr(0, 0, hp_str, c)
-		dr = f" (Drain -{p.hp_drain})" if p.hp_drain > 0 else ""
+		dr = ""
+		if p.hp_drain > 0:
+			extent = p.hp_drain//10+1
+			dr = f" (Drain {extent})" 
 		screen.addstr(0, len(hp_str), f"{dr} | DG. LV {self.level} | XP {p.exp}/{p.max_exp()} ({p.level})")
 		wd = min(width, 60)
 		str_string = f"STR {p.STR}"

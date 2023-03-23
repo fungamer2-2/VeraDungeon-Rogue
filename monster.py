@@ -1076,12 +1076,15 @@ class NothicRotGaze(SpellAttack):
 	def __init__(self):
 		super().__init__(None, 6, "The {0} gazes at you!", time_cost=40)
 	
+	def should_use(self):
+		return one_in(2)
+	
 	def on_hit_effect(self, target):
 		if isinstance(target, Monster):
 			return
 		g = target.g
 		g.print_msg("You feel your flesh rotting.", "red")
-		dam = target.apply_resist(dice(3, 6))
+		dam = target.apply_resist(dice(4, 6))
 		target.take_damage(dam)
 		target.drain(dam, silent=True) 
 
