@@ -647,7 +647,7 @@ class Monster(Entity):
 								d = (-self.dir[0], -self.dir[1])
 								self.move(*d)
 								self.dir = d
-								
+														
 	def maybe_use_spell(self, spell, target):
 		if self.distance(target, False) > spell.range:
 			return False
@@ -980,6 +980,7 @@ class Specter(Monster):
 	WIS = 10
 	to_hit = 4
 	passive_perc = 10
+	eff_immunities = {"Asleep"}
 	symbol = "t"
 	attacks = [
 		SpecterDrain()
@@ -987,8 +988,6 @@ class Specter(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "specter", 44, False)
-
-
 
 class GiantEagle(Monster):
 	diff = 5
@@ -1312,3 +1311,31 @@ class Troll(Monster):
 	
 	def __init__(self, g):
 		super().__init__(g, "troll", 168, False)
+
+class FireElementalAttack(Attack):
+	
+	def __init__(self):
+		super().__init__((4, 6), 6, "The {0} touches {1} with its fire")
+
+	def on_hit(self, player, mon, dmg):
+		if player.fire <= 0 or one_in(3):
+			player.fire += 1
+			self.g.print_msg("You're set on fire!", "red")
+		
+class FireElemental(Monster):
+	diff = 9
+	speed = 50
+	min_level = 29
+	DEX = 17
+	WIS = 10
+	to_hit = 6
+	passive_perc = 10
+	symbol = "Ã"
+	attacks = [
+		Attack((4, 6), 6, "The {0} touches {1} with its fire"),
+		
+	]
+	eff_immunities = {"Asleep", "Paralyzed"}
+	
+	def __init__(self, g):
+		super().__init__(g, "fire elemental", 204, False)

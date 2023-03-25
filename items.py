@@ -158,7 +158,7 @@ class SleepScroll(Scroll):
 		power = dice(10, 8)
 		to_affect = []
 		for m in mons:
-			if m.has_effect("Asleep"):
+			if m.has_effect("Asleep") or m.is_eff_immune("Asleep"):
 				continue
 			power -= m.HP
 			if power < 0:
@@ -723,4 +723,4 @@ class DexterityRing(Ring):
 	def __init__(self):
 		super().__init__("ring of dexterity", "You feel like your agility has improved.", "You feel less agile.",
 			passives={"DEX": 3}
-		)	
+		)

@@ -29,6 +29,7 @@ class Player(Entity):
 		
 		self.hp_drain = 0
 		self.poison = 0
+		self.fire = 0
 		self.effects = {}
 		self.armor = None
 		self.activity = None
@@ -615,6 +616,7 @@ class Player(Entity):
 			dist = abs(m.x - self.x) + abs(m.y - self.y)
 			if dist > 1:
 				self.remove_grapple(m)
+		can_regen = self.poison <= 0 and self.fire <= 0
 		if self.poison > 0:
 			dmg = 1 + math.isqrt(self.poison//3)
 			if dmg > self.poison:
@@ -627,7 +629,15 @@ class Player(Entity):
 						self.g.print_msg("You feel very sick.", "red")
 				elif one_in(3):
 					self.g.print_msg("You feel sick.", "red")
-		elif self.HP < self.get_max_hp():
+		if self.fire > 0:
+			self.g.print_msg("The fire burns you!", "red")
+			dmg = dice(1, 10)+5
+			self.take_damage(dmg) #Always interrupt activities for this
+			if self.ticks % 2 == 0 and dice(1, 20) + calc_mod(self.DEX) >= 10:
+				self.fire -= 1
+				if self.fire <= 0:
+					self.g.print_msg("You manage to fully extinguish the fire.", "green")
+		if can_regen and self.HP < self.get_max_hp():
 			if self.ticks % 6 == 0:
 				self.HP += 1
 		if self.has_effect("Rejuvenated"):
