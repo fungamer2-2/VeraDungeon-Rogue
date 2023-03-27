@@ -30,6 +30,8 @@ class Player(Entity):
 		self.hp_drain = 0
 		self.poison = 0
 		self.fire = 0
+		self.turns_engulfed = 0 #For the water elemental
+		self.engulfed_by = None
 		self.effects = {}
 		self.armor = None
 		self.activity = None
@@ -183,11 +185,13 @@ class Player(Entity):
 		else:
 			self.g.print_msg("You are poisoned!", "yellow")
 	
-	def take_damage(self, dam, poison=False):
+	def take_damage(self, dam, poison=False, force_interrupt=False):
 		if dam <= 0:
 			return
 		self.HP -= dam
-		if not poison: #Poison damage should only interrupt activities if it's likely to be lethal
+		if force_interrupt:
+			self.interrupt(force=True)
+		elif not poison: #Poison damage should only interrupt activities if it's likely to be lethal
 			self.interrupt()
 		else:
 			if self.poison >= self.HP:
@@ -591,9 +595,10 @@ class Player(Entity):
 		total_stealth = 1
 		for m in mons:
 			perc = m.passive_perc - 5*m.has_effect("Asleep")
-			stealth_prob = d20_prob(perc, mod, nat1=True)	
+			stealth_prob = d20_prob(perc, mod)	
+			stealth_prob *= 1 - 1/30 #Includes the 1/30 auto-fail chance
 			if not self.last_attacked:
-				stealth_prob += (1 - stealth_prob)/2
+				stealth_prob += (1 - stealth_prob)/2.5
 			total_stealth *= stealth_prob
 		#total_stealth is the chance of remaining UNdetected
 		#To get the detectability, invert it
@@ -631,12 +636,22 @@ class Player(Entity):
 					self.g.print_msg("You feel sick.", "red")
 		if self.fire > 0:
 			self.g.print_msg("The fire burns you!", "red")
-			dmg = dice(1, 10)+5
-			self.take_damage(dmg) #Always interrupt activities for this
+			dmg = dice(1, 10)+2
+			self.take_damage(dmg, force_interrupt=True) #Always interrupt activities for this
 			if self.ticks % 2 == 0 and dice(1, 20) + calc_mod(self.DEX) >= 10:
 				self.fire -= 1
 				if self.fire <= 0:
 					self.g.print_msg("You manage to fully extinguish the fire.", "green")
+		if self.engulfed_by:
+			if self.engulfed_by in self.grappled_by:
+				self.turns_engulfed += 1
+				if self.turns_engulfed > 1:
+					self.g.print_msg("You can't breathe, as you are engulfed by the water!", "red")
+					amount = 3 + (self.turns_engulfed - 1)**0.7
+					self.take_damage(div_rand(int(100*amount), 100))
+			else:
+				self.turns_engulfed = 0
+				self.engulfed_by = None
 		if can_regen and self.HP < self.get_max_hp():
 			if self.ticks % 6 == 0:
 				self.HP += 1
@@ -657,7 +672,7 @@ class Player(Entity):
 		mod = self.stealth_mod()
 		for m in self.g.monsters:
 			m.check_timer -= 1
-			if m.check_timer <= 0 or self.did_attack or one_in(15): #Very occasionally make the check before the timer reaches zero
+			if m.check_timer <= 0 or self.did_attack or one_in(25): #Very occasionally make the check before the timer reaches zero
 				m.reset_check_timer()
 				if not m.is_aware or self.did_attack: #If you attack while invisible, maybe alert the nearby monsters to your position
 					roll = dice(1, 20)

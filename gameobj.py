@@ -337,7 +337,7 @@ class Game:
 					(EnchantScroll, 4)
 				)
 				place_item(typ)
-			elif one_in(3):
+			elif one_in(5):
 				place_item(EnchantScroll)
 				
 			types = [

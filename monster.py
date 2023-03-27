@@ -10,6 +10,9 @@ class Attack:
 		self.to_hit = to_hit
 		self.msg = msg
 		
+	def dmg_bonus(self, mon, player):
+		return 0
+		
 	def can_use(self, mon, player):
 		return True	
 		
@@ -84,7 +87,7 @@ class Monster(Entity):
 		return speed
 		
 	def reset_check_timer(self):
-		self.check_timer = random.randint(1, 3)
+		self.check_timer = random.randint(1, 4)
 	
 	def move(self, dx, dy):
 		board = self.g.board
@@ -280,7 +283,10 @@ class Monster(Entity):
 			else:
 				self.g.print_msg(f"You evade the {self.name}'s attack.")
 		else:
-			damage = self.modify_damage(target, dice(*attack.dmg))
+			base = dice(*attack.dmg)
+			if target is player:
+				base += attack.dmg_bonus(self, target)
+			damage = self.modify_damage(target, base)
 			the_target = "you" if target is player else f"the {target.name}"
 			if damage:		
 				self.g.print_msg_if_sees((target.x, target.y), attack.msg.format(self.name, the_target) + f" for {damage} damage!", "red" if target is player else "white")
@@ -476,7 +482,9 @@ class Monster(Entity):
 		if self.has_effect("Asleep") or self.has_effect("Stunned") or self.has_effect("Paralyzed"):
 			self.energy = 0
 			return
-		player = self.g.player	
+		player = self.g.player
+		if self.target is not player and self.target.HP <= 0:
+			self.target = None
 		if self.target is None:
 			self.target = player
 		if self.is_friendly():
@@ -647,7 +655,7 @@ class Monster(Entity):
 								d = (-self.dir[0], -self.dir[1])
 								self.move(*d)
 								self.dir = d
-														
+					
 	def maybe_use_spell(self, spell, target):
 		if self.distance(target, False) > spell.range:
 			return False
@@ -784,6 +792,20 @@ class ClawGrapple(Attack):
 		if not one_in(3) and player.add_grapple(mon):
 			player.g.print_msg(f"The {mon.name} grapples you with its claw!", "red")
 
+class GiantRat(Monster):
+	diff = 2
+	min_level = 5
+	DEX = 15
+	to_hit = 4
+	passive_perc = 10
+	symbol = "R"
+	attacks = [
+		Attack((2, 4), 4, "The {0} bites {1}")
+	]
+	
+	def __init__(self, g):
+		super().__init__(g, "giant rat", 14, False)
+
 class CrabClaw(ClawGrapple):
 	
 	def __init__(self):
@@ -805,20 +827,6 @@ class GiantCrab(Monster):
 	def __init__(self, g):
 		super().__init__(g, "giant crab", 20, False)	
 						
-class GiantRat(Monster):
-	diff = 2
-	min_level = 5
-	DEX = 15
-	to_hit = 4
-	passive_perc = 10
-	symbol = "R"
-	attacks = [
-		Attack((2, 4), 4, "The {0} bites {1}")
-	]
-	
-	def __init__(self, g):
-		super().__init__(g, "giant rat", 14, False)
-
 
 class PoisonBite(Attack):
 	
@@ -879,6 +887,43 @@ class GiantBat(Monster):
 
 	def __init__(self, g):
 		super().__init__(g, "giant bat", 26, False)
+
+class SnakeConstrict(Attack):
+	
+	def __init__(self):
+		super().__init__((2, 8), 4, "The {0} constricts {1}")
+
+	def dmg_bonus(self, mon, player):
+		if mon in player.grappled_by:
+			return dice(1, 8)
+		return 0
+				
+	def on_hit(self, player, mon, dmg):
+		player.add_grapple(mon)
+		
+class SnakeBite(Attack):
+	
+	def __init__(self):
+		super().__init__((2, 6), 4, "The {0} bites {1}")
+
+	def can_use(self, mon, player):
+		return mon not in player.grappled_by or one_in(3) #If constricting, prefer to use that instead
+		
+class ConstrictorSnake(Monster):
+	diff = 3
+	speed = 30
+	min_level = 8
+	DEX = 14
+	WIS = 10
+	to_hit = 4
+	symbol = "s"
+	grapple_dc = 14	
+	attacks = [
+		[SnakeBite(), SnakeConstrict()]
+	]
+
+	def __init__(self, g):
+		super().__init__(g, "constrictor snake", 26, False)
 
 class GiantLizard(Monster):
 	diff = 3
@@ -1318,22 +1363,22 @@ class FireElementalAttack(Attack):
 		super().__init__((4, 6), 6, "The {0} touches {1} with its fire")
 
 	def on_hit(self, player, mon, dmg):
+		g = player.g
 		if player.fire <= 0 or one_in(3):
 			player.fire += 1
-			self.g.print_msg("You're set on fire!", "red")
+			g.print_msg("You're set on fire!", "red")
 		
 class FireElemental(Monster):
 	diff = 9
-	speed = 50
-	min_level = 29
+	speed = 30
+	min_level = 30
 	DEX = 17
 	WIS = 10
 	to_hit = 6
 	passive_perc = 10
 	symbol = "Ã"
 	attacks = [
-		Attack((4, 6), 6, "The {0} touches {1} with its fire"),
-		
+		FireElementalAttack()	
 	]
 	eff_immunities = {"Asleep", "Paralyzed"}
 	
