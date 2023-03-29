@@ -233,9 +233,9 @@ class Monster(Entity):
 			protect = target.armor	
 		if protect > 0:
 			if target is player:
-				damage -= random.randint(1, protect*4) #Armor can reduce damage
+				damage -= random.randint(0, protect*4) #Armor can reduce damage
 			else:
-				damage -= random.randint(0, mult_rand_frac(protect, 3, 2))
+				damage -= random.randint(0, protect*2)
 			if damage <= 0:
 				return 0
 		if target is player and player.has_effect("Resistance"):
@@ -478,13 +478,23 @@ class Monster(Entity):
 			return True
 		return self.g.board.line_of_sight((target.x, target.y), (self.x, self.y))
 		
+	def try_use_spell(self, target):
+		candidates = self.spells[:]
+		random.shuffle(candidates)
+		for spell in candidates:
+			if self.maybe_use_spell(spell, target):
+				self.energy -= mult_rand_frac(self.get_speed(), max(0, spell.time_cost), 100)
+				return True
+		return False
+		
 	def actions(self):
 		if self.has_effect("Asleep") or self.has_effect("Stunned") or self.has_effect("Paralyzed"):
 			self.energy = 0
 			return
 		player = self.g.player
-		if self.target is not player and self.target.HP <= 0:
-			self.target = None
+		if self.target is not None:
+			if self.target is not player and self.target.HP <= 0:
+				self.target = None
 		if self.target is None:
 			self.target = player
 		if self.is_friendly():
@@ -573,13 +583,7 @@ class Monster(Entity):
 			if self.distance(target) <= 1:
 				used_spell = False
 				if self.spells and one_in(6) and target is player:
-					candidates = self.spells[:]
-					random.shuffle(candidates)
-					for spell in candidates:
-						if self.maybe_use_spell(spell, target):
-							self.energy -= mult_rand_frac(self.get_speed(), max(0, spell.time_cost), 100)
-							used_spell = True
-							break
+					used_spell = self.try_use_spell(target)
 				if not used_spell or self.energy > 0: #If we still have enough energy points to do so, make a melee attack
 					self.energy -= self.get_speed()
 					self.do_melee_attack(target)
@@ -593,13 +597,7 @@ class Monster(Entity):
 				old = self.energy
 				used_spell = False
 				if self.spells and one_in(5) and target is player:
-					candidates = self.spells[:]
-					random.shuffle(candidates)
-					for spell in candidates:
-						if self.maybe_use_spell(spell, target):
-							used_spell = True
-							self.energy -= mult_rand_frac(self.get_speed(), max(0, spell.time_cost), 100)
-							break
+					used_spell = self.try_use_spell(target)
 				if not used_spell:
 					oldx, oldy = self.x, self.y
 					self.path_towards(target.x, target.y)
@@ -664,12 +662,13 @@ class Monster(Entity):
 		player = g.player
 		board = g.board
 		
-		if not spell.should_use():
+		if not spell.should_use(self, target):
 			return False
 		
 		if spell.efftype is None:
-			self.g.print_msg(spell.msg.format(self.name))
-			spell.on_hit_effect(target)
+			if spell.msg:
+				g.print_msg(spell.msg.format(self.name))
+			spell.on_hit_effect(self, target)
 			return True
 		if g.board.line_of_sight((self.x, self.y), (target.x, target.y)):
 			line = list(g.board.line_between((self.x, self.y), (target.x, target.y)))
@@ -683,13 +682,14 @@ class Monster(Entity):
 			for x, y in line:
 				if g.monster_at(x, y):
 					return False
-			self.g.print_msg(spell.msg.format(self.name))
+			if spell.msg:
+				g.print_msg(spell.msg.format(self.name))
 			for x, y in line:
 			 	g.set_projectile_pos(x, y)
 			 	g.draw_board()
 			 	time.sleep(0.03)
 			g.clear_projectile()
-			spell.on_hit_effect(target)
+			spell.on_hit_effect(self, target)
 		elif spell.efftype == "cone":
 			x, y = self.x, self.y
 			px, py = target.x, target.y
@@ -705,13 +705,14 @@ class Monster(Entity):
 					num += 1
 			if num > 0 and x_in_y(num, num+2):
 				return False
-			g.print_msg(spell.msg.format(self.name))
+			if spell.msg:
+				g.print_msg(spell.msg.format(self.name))
 			for cx, cy in area:
 				g.blast.add((cx, cy))
 				if (m := g.get_monster(cx, cy)):
 					spell.on_hit_effect(m)
 				elif (player.x, player.y) == (cx, cy):
-					spell.on_hit_effect(player)
+					spell.on_hit_effect(self, player)
 			g.draw_board()
 			time.sleep(0.2)
 			g.blast.clear()
@@ -720,16 +721,16 @@ class Monster(Entity):
 			
 class SpellAttack:
 	
-	def __init__(self, efftype, range, msg, time_cost=100):
+	def __init__(self, efftype, range, msg="", time_cost=100):
 		self.efftype = efftype #Can be "cone", "blast", "ray", or None
 		self.range = range
 		self.msg = msg
 		self.time_cost = time_cost #Percentage of a turn this uses up
 		
-	def should_use(self):
+	def should_use(self, mon, target):
 		return True
 		
-	def on_hit_effect(self, target):
+	def on_hit_effect(self, mon, target):
 		pass
 		
 
@@ -1120,10 +1121,10 @@ class NothicRotGaze(SpellAttack):
 	def __init__(self):
 		super().__init__(None, 6, "The {0} gazes at you!", time_cost=40)
 	
-	def should_use(self):
+	def should_use(self, mon, target):
 		return one_in(2)
 	
-	def on_hit_effect(self, target):
+	def on_hit_effect(self, mon, target):
 		if isinstance(target, Monster):
 			return
 		g = target.g
@@ -1301,43 +1302,7 @@ class Ettin(Monster):
 		
 	def __init__(self, g):
 		super().__init__(g, "ettin", 170, False)
-
-class RubberPseudopod(Attack):
-	
-	def __init__(self):
-		super().__init__((6, 9), 7, "The {0} hits {1} with its pseudopod")
-
-	def on_hit(self, player, mon, dmg):
-		g = player.g
-		if mon.distance(player) <= 1 and one_in(2) and dice(1, 20) + calc_mod(player.DEX) < 14:
-			dx = player.x - mon.x
-			dy = player.y - mon.y
-			if dx != 0:
-				dx //= abs(dx)
-			if dy != 0:
-				dy //= abs(dy)
-			dx *= 2
-			dy *= 2
-			player.knockback(dx, dy)
 			
-class RubberSlime(Monster):
-	diff = 9
-	speed = 30
-	min_level = 29
-	DEX = 10
-	WIS = 10
-	to_hit = 7
-	passive_perc = 10
-	symbol = "U"
-	attacks = [
-		RubberPseudopod()
-	]
-	
-	rubbery = True #It shrugs off most bludgeoning damage
-		
-	def __init__(self, g):
-		super().__init__(g, "rubbery slime", 170, False)
-
 class Troll(Monster):
 	diff = 9
 	speed = 40
@@ -1384,3 +1349,78 @@ class FireElemental(Monster):
 	
 	def __init__(self, g):
 		super().__init__(g, "fire elemental", 204, False)
+
+class ElementalEngulf(SpellAttack):
+	
+	def __init__(self):
+		super().__init__(None, 1)
+		
+	def on_hit_effect(self, mon, target):
+		if isinstance(target, Monster):
+			return
+		if mon in target.grappled_by:
+			return
+		if target.engulfed_by:
+			return
+		g = target.g
+		if not one_in(15) and roll + calc_mod(target.STR) >= 15:
+			g.print_msg(f"The {mon.name} attempts to engulf you, but you resist!", "yellow")
+		elif target.add_grapple(mon):
+			g.print_msg(f"The {mon.name} engulfs you! You can't breathe!", "red")
+			target.engulfed_by = mon
+			target.turns_engulfed = 0
+			
+class AirBlast(SpellAttack):
+	
+	def __init__(self):
+		super().__init__(None, 1, "The {0} sends a huge blast of air at you!")
+	
+	def should_use(self, mon, target):
+		return one_in(2)
+				
+	def on_hit_effect(self, mon, target):
+		if isinstance(target, Monster):
+			return
+		g = target.g
+		g.print_msg("You are hit by the blast!", "red")
+		if dice(1, 20) + calc_mod(target.STR) >= 13 and not one_in(target.STR+1):
+			target.take_damage(target.apply_armor(dice(3, 8)))
+		else:
+			target.take_damage(target.apply_armor(dice(6, 8)))
+			target.knockback_from(mon.x, mon.y, 4)
+			
+class WaterElementalAttack(Monster):
+	diff = 9
+	speed = 30
+	min_level = 30
+	DEX = 14
+	WIS = 10
+	to_hit = 7
+	passive_perc = 10
+	symbol = "~"
+	attacks = [
+		Attack((4, 8), 7, "The {0} slams into {1}"),
+	]
+	spells = [ElementalEngulf()]
+	eff_immunities = {"Asleep", "Paralyzed"}
+	
+	def __init__(self, g):
+		super().__init__(g, "water elemental", 228, False)
+		
+class AirElemental(Monster):
+	diff = 9
+	speed = 90
+	min_level = 30
+	DEX = 20
+	WIS = 10
+	to_hit = 8
+	passive_perc = 10
+	symbol = "%"
+	attacks = [
+		Attack((4, 8), 8, "The {0} slams into {1}"),
+	]
+	spells = [AirBlast()]
+	eff_immunities =  {"Asleep", "Paralyzed"}
+	
+	def __init__(self, g):
+		super().__init__(g, "air elemental", 180, False)

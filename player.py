@@ -411,6 +411,17 @@ class Player(Entity):
 				mod -= self.armor.stealth_pen
 		return mod
 		
+	def knockback_from(self, ox, oy, force):
+		dx = self.x - ox
+		dy = self.y - oy
+		if dx != 0:
+			dx //= abs(dx)
+		if dy != 0:
+			dy //= abs(dy)
+		dx *= force
+		dy *= force
+		self.knockback(dx, dy)
+		
 	def knockback(self, dx, dy):
 		if dx == 0 and dy == 0:
 			return
@@ -418,12 +429,24 @@ class Player(Entity):
 		newpos = self.x+dx, self.y+dy
 		oldpos = (self.x, self.y)
 		dist = 0
+		self.grappled_by.clear()
 		for x, y in board.line_between(oldpos, newpos, skipfirst=True):
 			if not board.is_passable(x, y):
 				if dist > 0:
-					dam = dice(2, dist*3)
-					self.g.print_msg(f"You take {dam} damage by the impact!", "red")
-					self.take_damage(dam)
+					if (m := self.g.get_monster(x, y)) is not None:
+						dam = dice(1, dist*3)
+						self.g.print_msg(f"You take {dam} damage by the impact!", "red")
+						self.take_damage(dam)
+						amount = max(1, binomial(dam, 50))
+						self.g.print_msg(f"The {m.name} takes {dam} damage from your impact!")
+						m.take_damage(dam, source=self)
+						self.energy -= 15
+						m.energy -= 15
+					else:
+						dam = dice(2, dist*3)
+						self.g.print_msg(f"You take {dam} damage by the impact!", "red")
+						self.take_damage(dam)
+						self.energy -= 30
 				return
 			if dist == 0:
 				self.g.print_msg("You're knocked back!", "red")
@@ -714,6 +737,9 @@ class Player(Entity):
 		protect += self.passives["protect"]
 		return protect
 		
+	def apply_armor(self, dam):
+		return max(0, dam - random.randint(0, 4*self.get_protect())) 
+		
 	def attack(self, dx, dy):
 		x, y = self.x + dx, self.y + dy
 		if not self.g.monster_at(x, y):
@@ -804,12 +830,6 @@ class Player(Entity):
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
 			dam = max(dam, min_dam)
 			dmgtype = self.weapon.dmg_type
-			if mon.rubbery:
-				if dmgtype == "bludgeon":
-					dam = binomial(dam, dam, mon.HP)
-				elif dmgtype == "slash":
-					dam = binomial(dam, 50)
-			
 			if dam > 0:
 				msg = f"You hit the {mon.name} for {dam} damage."
 				if mon.HP > dam:
@@ -817,22 +837,6 @@ class Player(Entity):
 				self.g.print_msg(msg)
 				if crit:
 					self.g.print_msg("Critical!", "green")
-			elif mon.rubbery and dmgtype == "bludgeon":
-				self.g.print_msg(f"You hit the {mon.name} but your attack bounces off of it.")
-				do_reveal = one_in(7)
-				if not self.is_unarmed() and one_in(5) and dice(1, 20) + calc_mod(self.DEX) <= 12:
-					reflectdmg = dmgdice.roll()
-					prot = self.get_protect()
-					if prot > 0:
-						reflectdmg = max(0, reflectdmg - random.randint(0, prot*2))
-					if reflectdmg > 0:
-						reflectdmg = max(1, binomial(reflectdmg, 60))
-						do_reveal = True
-						self.g.print_msg(f"The attack bounces back to you for {reflectdmg}!", "red")
-						self.take_damage(reflectdmg)
-						self.energy -= 20
-				if do_reveal:
-					self.g.print_msg(f"This type of damage seems to be highly ineffective against the {mon.name}. You may need to use something sharper.")
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
 			mon.take_damage(dam, self)
