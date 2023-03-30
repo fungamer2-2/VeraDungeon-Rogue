@@ -1382,13 +1382,20 @@ class AirBlast(SpellAttack):
 		if isinstance(target, Monster):
 			return
 		g = target.g
-		g.print_msg("You are hit by the blast!", "red")
-		if dice(1, 20) + calc_mod(target.STR) >= 13 and not one_in(target.STR+1):
-			target.take_damage(target.apply_armor(dice(3, 8)))
+		saved = dice(1, 20) + calc_mod(target.STR) >= 13 and not one_in(target.STR+1)
+		num = 6
+		if saved:
+			num = 3
+		base = dice(num, 8)
+		dam = target.apply_armor(base)
+		if dam > 0:
+			g.print_msg("You are hit by the blast!", "red")
+			target.take_damage(dam)
+			if not saved:
+				target.knockback_from(mon.x, mon.y, mult_rand_frac(4, dam, base))
 		else:
-			target.take_damage(target.apply_armor(dice(6, 8)))
-			target.knockback_from(mon.x, mon.y, 4)
-			
+			g.print_msg("You are hit by the blast but take no damage.")
+		
 class WaterElementalAttack(Monster):
 	diff = 9
 	speed = 30

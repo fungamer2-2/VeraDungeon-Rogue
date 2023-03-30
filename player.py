@@ -412,6 +412,8 @@ class Player(Entity):
 		return mod
 		
 	def knockback_from(self, ox, oy, force):
+		if force <= 0:
+			return
 		dx = self.x - ox
 		dy = self.y - oy
 		if dx != 0:
