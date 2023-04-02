@@ -25,6 +25,8 @@ class Player(Entity):
 		self.base_dex = 10
 		self.mod_str = 0
 		self.mod_dex = 0
+		self.str_drain = 0
+		self.dex_drain = 0
 		self.passives = defaultdict(int)
 		
 		self.hp_drain = 0
@@ -638,8 +640,8 @@ class Player(Entity):
 		self.mod_dex = 0
 		
 		#Passive modifiers go here
-		self.mod_str += self.passives["STR"]
-		self.mod_dex += self.passives["DEX"]		
+		self.mod_str += self.passives["STR"] - self.str_drain
+		self.mod_dex += self.passives["DEX"] - self.dex_drain	
 
 		self.ticks += 1
 		for m in self.grappled_by[:]:
@@ -648,7 +650,7 @@ class Player(Entity):
 				self.remove_grapple(m)
 		can_regen = self.poison <= 0 and self.fire <= 0
 		if self.poison > 0:
-			dmg = 1 + math.isqrt(self.poison//3)
+			dmg = 1 + math.isqrt(self.poison//2)
 			if dmg > self.poison:
 				dmg = self.poison
 			self.poison -= dmg
@@ -692,6 +694,11 @@ class Player(Entity):
 				self.hp_drain -= 1
 				if self.hp_drain == 0:
 					self.g.print_msg("You have fully recovered from drain.", "green")
+		if self.ticks % 20 == 0:
+			if self.str_drain > 0 and one_in(20):
+				self.str_drain -= 1
+			if self.dex_drain > 0 and one_in(20):
+				self.dex_drain -= 1
 		for e in list(self.effects.keys()):
 			self.adjust_duration(e, -1)
 		mod = self.stealth_mod()
@@ -990,3 +997,4 @@ class Player(Entity):
 								self.energy -= self.get_speed()
 							return
 		menu.close()
+		

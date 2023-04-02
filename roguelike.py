@@ -31,7 +31,7 @@ from os import get_terminal_size
 from utils import *
 from board import *	
 from gameobj import *					
-from entity import *		
+from entity import *
 from items import *
 from monster import *
 

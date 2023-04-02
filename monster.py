@@ -974,6 +974,34 @@ class Orc(Monster):
 	def __init__(self, g):
 		super().__init__(g, "orc", 30, None, (2, 6))
 
+class ShadowStrDrain(Attack):
+	
+	def __init__(self):
+		super().__init__((4, 6), 4)
+		
+	def on_hit(self, player, mon, dmg):
+		g = player.g
+		if one_in(2) and player.STR > dice(1, 9):
+			player.str_drain += 1
+			g.print_msg("You feel weaker.", "red")
+
+class Shadow(Monster):
+	diff = 4
+	speed = 40
+	min_level = 12
+	DEX = 14
+	WIS = 10
+	to_hit = 4
+	passive_perc = 10
+	symbol = "a"
+	attacks = [
+		ShadowStrDrain()
+	]
+		
+	def __init__(self, g):
+		super().__init__(g, "shadow", 32, False)
+
+
 class BlackBear(Monster):
 	diff = 4
 	speed = 40
@@ -1013,7 +1041,7 @@ class BrownBear(Monster):
 class SpecterDrain(Attack):
 	
 	def __init__(self):
-		super().__init__((3, 8), 4)
+		super().__init__((4, 6), 4)
 		
 	def on_hit(self, player, mon, dmg):
 		player.drain(random.randint(1, dmg))
