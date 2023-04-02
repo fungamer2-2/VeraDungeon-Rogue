@@ -981,7 +981,7 @@ class ShadowStrDrain(Attack):
 		
 	def on_hit(self, player, mon, dmg):
 		g = player.g
-		if one_in(2) and player.STR > dice(1, 9):
+		if player.STR > dice(1, 9):
 			player.str_drain += 1
 			g.print_msg("You feel weaker.", "red")
 
@@ -1459,3 +1459,21 @@ class AirElemental(Monster):
 	
 	def __init__(self, g):
 		super().__init__(g, "air elemental", 180, False)
+
+class EarthElemental(Monster):
+	diff = 9
+	speed = 30
+	min_level = 30
+	DEX = 8
+	WIS = 10
+	to_hit = 8
+	passive_perc = 10
+	armor = 9
+	symbol = "Ê"
+	attacks = [
+		Attack((4, 8), 8, "The {0} slams into {1}"),
+	]
+	eff_immunities =  {"Asleep", "Paralyzed"}
+	
+	def __init__(self, g):
+		super().__init__(g, "earth elemental", 252, False)

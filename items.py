@@ -175,26 +175,6 @@ class SleepScroll(Scroll):
 			g.print_msg("Nothing seems to happen.")
 		return True
 		
-class StunScroll(Scroll):
-	description = "Reading this scroll stuns a random amount of nearby monsters."
-	
-	def __init__(self):
-		super().__init__("scroll of stun")
-	
-	def use(self, player):
-		g = player.g
-		g.print_msg("You read a scroll of stun. The scroll crumbles to dust.")
-		seen = list(player.monsters_in_fov())
-		random.shuffle(seen)
-		affects = seen[:random.randint(1, len(seen))]
-		for m in affects:
-			if m.HP <= random.randint(125, 175) and not m.is_eff_immune("Stunned"):
-				g.print_msg(f"The {m.name} is stunned!")
-				m.gain_effect("Stunned", random.randint(6, 22))
-			else:
-				g.print_msg(f"The {m.name} is unaffected.")
-		return True
-		
 class TeleportScroll(Scroll):
 	description = "Reading this scroll will randomly teleport the one who reads it."
 	

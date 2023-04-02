@@ -573,16 +573,8 @@ class Player(Entity):
 					bonus = random.randint(1, bonus)
 				damage += bonus
 			damage = target.apply_armor(damage, 1+crit) #Crits give 50% armor penetration
-			if target.rubbery:
-				if self.weapon.dmg_type == "bludgeon":		
-					damage = binomial(damage, damage, mon.HP)
-				elif self.weapon.dmg_type == "slash":
-					damage = binomial(damage, 50)
 			if damage <= 0:
-				if target.rubbery and self.weapon.dmg_type == "bludgeon":
-					g.print_msg(f"The {item.name} harmlessly bounces off the {target.name}.")
-				else:
-					g.print_msg(f"The {item.name} hits the {target.name} but does no damage.")
+				g.print_msg(f"The {item.name} hits the {target.name} but does no damage.")
 			else:
 				msg = f"The {item.name} hits the {target.name} for {damage} damage."
 				if target.HP > damage: #Only print the HP message if the attack didn't kill them
@@ -731,6 +723,7 @@ class Player(Entity):
 					mod -= 2
 			else:
 				mod += 2
+			mod += self.weapon.enchant
 		return mod + self.passives["to_hit"]
 		
 	def base_damage_dice(self):
@@ -776,7 +769,6 @@ class Player(Entity):
 		if mon.has_effect("Paralyzed"):
 			eff_ac = min(eff_ac, 5)
 			adv = True
-			
 		if adv:
 			roll = max(roll, dice(1, 20))
 		crit = False
@@ -861,19 +853,21 @@ class Player(Entity):
 		self.g.remove_monster(mon)
 		num = len(list(filter(lambda m: not m.is_friendly(), self.g.monsters)))
 		self.remove_grapple(mon)
-		v1 = min(mon.diff, 6*math.log2(1+mon.diff/6))
+		d = mon.diff
+		if d > 4:
+			d = 4 + (mon.diff - 4) / 2
+		v1 = min(d, 6*math.log2(1+d/6))
 		val = (v1 - 1)**0.85
-		
-		gain = math.ceil(min(12 * 2**val, 60 * 1.5**val) - 6)
+		gain = math.ceil(12 * 2**val) - 6
 		self.gain_exp(gain)
 		if mon.weapon:
 			if isinstance(mon.weapon, list):
 				for w in mon.weapon:
-					if one_in(3):
+					if one_in(4):
 						weapon = w()
 						self.g.print_msg(f"The {mon.name} drops its {weapon.name}!", "green")
 						self.g.spawn_item(weapon, (mon.x, mon.y))
-			elif one_in(3):
+			elif one_in(4):
 				weapon = mon.weapon()
 				self.g.print_msg(f"The {mon.name} drops its {weapon.name}!", "green")
 				self.g.spawn_item(weapon, (mon.x, mon.y))

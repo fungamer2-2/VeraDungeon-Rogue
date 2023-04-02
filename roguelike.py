@@ -35,11 +35,9 @@ from entity import *
 from items import *
 from monster import *
 
-#Plans:
-#Add spell attacks to monsters
-	
-
-if __name__ == "__main__":		
+if __name__ == "__main__":
+	profiler = cProfile.Profile()
+	profiler.enable()
 	g = Game()
 	try:
 		g.print_msg("Welcome to VeraDugeon Rogue v0.5")
@@ -79,6 +77,7 @@ if __name__ == "__main__":
 					g.player.resting = False
 					player.energy = random.randint(1, player.get_speed())
 					refresh = True
+					g.save_game()
 			elif g.player.activity:
 				time.sleep(0.01)
 				player.energy = 0
@@ -88,6 +87,7 @@ if __name__ == "__main__":
 					player.activity = None
 					refresh = True
 					player.energy = random.randint(1, player.get_speed())
+					g.save_game()
 			else:
 				g.screen.nodelay(False)
 				curses.flushinp()
@@ -214,6 +214,7 @@ if __name__ == "__main__":
 					player.energy = 0
 				elif char == "Q": #Quit
 					if g.yes_no("Are you sure you want to quit the game?"):
+						g.save_game()
 						curses.nocbreak()
 						curses.echo()
 						exit()
@@ -239,8 +240,7 @@ if __name__ == "__main__":
 				busy = player.resting or player.activity
 				if not busy or player.ticks % 10 == 0:
 					g.draw_board()
-				if not busy or player.ticks % 40 == 0:
-					g.save_game()
+				g.autosave()
 			elif refresh:
 				g.draw_board()
 		g.delete_saved_game()

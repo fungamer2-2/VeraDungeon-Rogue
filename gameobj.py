@@ -1,4 +1,4 @@
-import random, curses, textwrap
+import random, curses, textwrap, time
 from os import get_terminal_size, path
 from itertools import islice
 from collections import deque
@@ -81,6 +81,7 @@ class Game:
 		self.select = None
 		self.level = 1
 		self.revealed = []
+		self.last_save = time.time()
 		types = Effect.__subclasses__()
 		self.effect_types = {t.name:t for t in types}
 		self.mon_types = Monster.__subclasses__()
@@ -104,6 +105,11 @@ class Game:
 			
 	def save_game(self):
 		pickle.dump(self, open("save.pickle", "wb"))
+		self.last_save = time.time()
+		
+	def autosave(self):
+		if time.time() - self.last_save > 1:
+			self.save_game()
 		
 	def has_saved_game(self):
 		return path.exists("save.pickle")
@@ -327,18 +333,15 @@ class Game:
 				)
 				place_item(typ)
 			
-			if x_in_y(2, 5):
+			if one_in(2):
 				typ = rand_weighted(
-					(StunScroll, 2),
 					(TeleportScroll, 3),
 					(SleepScroll, 2),
 					(ConfusionScroll, 3),
 					(SummonScroll, 2),
-					(EnchantScroll, 4)
+					(EnchantScroll, 5)
 				)
 				place_item(typ)
-			elif one_in(5):
-				place_item(EnchantScroll)
 				
 			types = [
 				(Club, 65),
