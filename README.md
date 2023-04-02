@@ -1,4 +1,9 @@
 # VeraDungeon Rogue
+
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/fungamer2-2/VeraDungeon-Rogue)
+![GitHub last commit](https://img.shields.io/github/last-commit/fungamer2-2/VeraDungeon-Rogue)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/fungamer2-2/VeraDungeon-Rogue)
+
 A terminal-based CLI roguelike game in Python
 
 Discord Server: https://discord.gg/dKRGTgxT65
