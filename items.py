@@ -23,6 +23,11 @@ class Item:
 		g.print_msg("You use an item. Nothing interesting seems to happen")
 		return True
 		
+class Enchantable(Item):
+		
+	def can_enchant(self):
+		return self.enchant < 3
+		
 class Scroll(Item):
 	description = "This is a regular scroll that does nothing. If you see this, it's a bug."
 	
@@ -253,7 +258,7 @@ class RemArmor(Activity):
 		g = player.g
 		g.print_msg(f"You finish removing your {self.armor.name}.")
 				
-class Armor(Item):
+class Armor(Enchantable):
 	description = "This is armor. It may protect you from attacks."
 	stealth_pen = 0
 	dex_mod_softcap = None #This represents the softcap for dexterity bonus to AC
@@ -330,7 +335,7 @@ class PlateArmor(Armor):
 	def __init__(self):
 		super().__init__("plate armor", "T", 8)
 		
-class Weapon(Item):
+class Weapon(Enchantable):
 	description = "This is a weapon that can be used to attack enemies."
 	crit_mult = 2
 	crit_thresh = 20

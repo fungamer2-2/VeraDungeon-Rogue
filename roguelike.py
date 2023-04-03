@@ -36,8 +36,6 @@ from items import *
 from monster import *
 
 if __name__ == "__main__":
-	profiler = cProfile.Profile()
-	profiler.enable()
 	g = Game()
 	try:
 		g.print_msg("Welcome to VeraDugeon Rogue v0.5")
@@ -159,15 +157,12 @@ if __name__ == "__main__":
 							if m.armor > 0:
 								string += f" | Armor: {m.armor}"
 							g.print_msg(string)
-				elif char == "u": #Use an item - migrated to Inventory menu
-					g.print_msg("The \"Use\" keybind has been migrated to the \"Inventory\" keybind. Use the \"i\" key instead to open the inventory.")
-					refresh = True
 				elif char == "i": #Inventory menu
 					if player.inventory:
 						player.inventory_menu()
 					else:
 						g.print_msg("You don't have anything in your inventory.")
-						refresh = True
+					refresh = True
 				elif char == "r" and player.HP < player.MAX_HP: #Rest and wait for HP to recover 
 					aware_count = 0
 					for m in player.monsters_in_fov():
@@ -218,9 +213,6 @@ if __name__ == "__main__":
 						curses.nocbreak()
 						curses.echo()
 						exit()
-				elif char == "t":
-					player.throw_item()
-					refresh = True
 				elif char == "+": #Display worn rings
 					if player.worn_rings:
 						num = len(player.worn_rings)

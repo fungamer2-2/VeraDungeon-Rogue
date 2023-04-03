@@ -461,29 +461,11 @@ class Player(Entity):
 			time.sleep(0.01)
 		
 		
-	def throw_item(self):
-		throwable = filter(lambda t: isinstance(t, Weapon), self.inventory)
-		#throwable = filter(lambda t: t.thrown is not None, throwable)
-		throwable = list(throwable)
+	def throw_item(self, item):
 		g = self.g
-		if not throwable:
-			g.print_msg("You don't have any weapons to throw.")
-			return
 		if not (mons := list(self.monsters_in_fov())):
 			g.print_msg("You don't see any targets to throw an item.")
 			return
-		strings = ", ".join(f"{i+1}. {t.name}" for i, t in enumerate(throwable))
-		g.print_msg("Throw which item? (Enter a number)")
-		g.print_msg(strings)
-		try:
-			num = int(g.input())
-			if num < 1 or num > len(throwable):
-				g.print_msg(f"Number must be between 1 and {len(throwable)}.")
-				return
-		except ValueError:
-			g.print_msg("You didn't enter a number.")
-			return
-		item = throwable[num - 1]
 		if item.thrown:
 			short, long = item.thrown
 		else:
@@ -509,8 +491,8 @@ class Player(Entity):
 			foe_adjacent = True
 		elif (m := g.get_monster(self.x, self.y+1)) and m.is_aware and not m.incapacitated():
 			foe_adjacent = True
-		if foe_adjacent: #If there's a monster who can see us rand is right next to us, it's harder to aim
-			pen += 4
+		if foe_adjacent: #If there's a monster who can see us and is right next to us, it's harder to aim
+			pen += 3
 		avg_pen = pen
 		if num_tiles > short:
 			scale = 8
@@ -906,6 +888,8 @@ class Player(Entity):
 				name += f" - {item.charges} charges"
 			elif isinstance(item, Ring) and item in self.worn_rings:
 				name += " (worn)"
+			elif isinstance(item, Weapon) and item is self.weapon:
+				name += " (wielded)"
 			if name not in d:
 				d[name] = [0, item]
 			d[name][0] += 1
@@ -975,7 +959,16 @@ class Player(Entity):
 						if item.stealth_pen > 0:
 							menu.add_text(f"This armor tends to make some noise when moving. -{item.stealth_pen} to stealth checks.")
 					menu.add_line()
-					menu.add_text("u - use item")
+					can_throw = isinstance(item, Weapon)
+					use_disp = "use item"
+					if isinstance(item, Weapon):
+						if item is self.weapon:
+							use_disp = "unwield"
+						else:
+							use_disp = "wield"
+					menu.add_text(f"u - {use_disp}") #TODO: Combine the "Throw" menu into this menu and remove the "t" keybind
+					if can_throw:
+						menu.add_text("t - throw") 
 					menu.add_text("Enter - return")
 					menu.display()
 					while True:
@@ -989,6 +982,10 @@ class Player(Entity):
 								if result is not None: #None uses a turn without removing the item
 									self.inventory.remove(item)
 								self.energy -= self.get_speed()
+							return
+						elif chr(c) == "t" and can_throw:
+							menu.close()
+							self.throw_item(item)
 							return
 		menu.close()
 		

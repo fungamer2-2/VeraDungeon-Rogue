@@ -130,7 +130,6 @@ class Game:
 		menu.add_text("space - go down to next level (when standing on a \">\" symbol)")
 		menu.add_text("? - brings up this menu again")
 		menu.add_text(". - wait a turn")
-		menu.add_text("t - throw a throwable item")
 		menu.add_text("+ - view equipped rings (and bonuses from them)")
 		menu.add_text("Q - quit the game")
 		menu.add_line()
