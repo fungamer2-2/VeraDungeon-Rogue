@@ -300,7 +300,12 @@ class Game:
 						tile.items.append(item := typ())
 						return item
 			return None
-						
+			
+		def apply_rand_enchant(item):
+			if isinstance(item, Weapon):
+				enchants = ["speed", "armor piercing", "life stealing"]
+				item.ench_type = random.choice(enchants)
+				
 		if not one_in(8):	
 			types = [
 				(HealthPotion, 55),
@@ -362,7 +367,7 @@ class Game:
 				if (weapon := place_item(rand_weighted(*types))):
 					if one_in(20):
 						for _ in range(3):
-							weapon.add_enchant()
+							weapon.enchant += 1
 							if not one_in(3):
 								break
 				
@@ -387,6 +392,7 @@ class Game:
 						num += 1
 				for _ in range(num):
 					place_item(random.choice(types))
+						
 		
 		self.revealed.clear()
 		self.draw_board()
@@ -459,7 +465,7 @@ class Game:
 		dmgdice = p.weapon.dmg
 		X = dmgdice.num
 		Y = dmgdice.sides
-		w = f"{p.weapon.name} ({X}d{Y})"
+		w = f"{p.weapon.non_ench_name} ({X}d{Y})"
 		screen.addstr(2, wd - len(w), w)
 		armor = self.player.armor
 		if armor:

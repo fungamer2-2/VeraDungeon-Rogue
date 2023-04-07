@@ -537,10 +537,11 @@ class Player(Entity):
 			hits = False
 		elif roll == 20:
 			hits = True
-			crit = dice(1, 20) + mod >= AC
 		else:
 			hits = roll + mod >= AC
 		if hits:
+			if x_in_y(item.crit_chance, 20):
+				crit = True
 			dmg = item.dmg
 			damage = dmg.roll()
 			damage += calc_mod(self.attack_stat())
@@ -731,7 +732,11 @@ class Player(Entity):
 			self.energy -= self.get_speed()
 			return
 		mon = self.g.get_monster(x, y)
-		self.energy -= min(self.get_speed(), 45)
+		ench_type = self.weapon.ench_type
+		cost = min(self.get_speed(), 45)
+		if ench_type == "speed":
+			cost = div_rand(cost, 2)
+		self.energy -= cost
 		roll = dice(1, 20)
 		adv = False
 		if not mon.is_aware or self.has_effect("Invisible"):
@@ -754,14 +759,8 @@ class Player(Entity):
 		if adv:
 			roll = max(roll, dice(1, 20))
 		crit = False
-		
 		mod = self.attack_mod()
-		thresh = self.weapon.crit_thresh
-		crit_threat = roll >= thresh
-		if crit_threat and dice(1, 20) + mod >= eff_ac:
-			hits = True
-			crit = True
-		elif roll == 1:
+		if roll == 1:
 			hits = False
 		elif roll == 20:
 			hits = True
@@ -783,6 +782,8 @@ class Player(Entity):
 		if not hits:
 			self.g.print_msg(f"Your attack misses the {mon.name}.")
 		else:
+			if x_in_y(self.weapon.crit_chance, 20):
+				crit = True
 			stat = self.attack_stat()
 			dmgdice = self.base_damage_dice()
 			dam = dmgdice.roll()
@@ -810,6 +811,10 @@ class Player(Entity):
 			dam += self.weapon.enchant
 			dam = max(dam, 1)
 			dam = mon.apply_armor(dam, 1+crit)
+			if ench_type == "armor piercing":
+				dam2 = mon.apply_armor(dam, 1+crit)
+				if dam < dam2:
+					dam = dam2
 			min_dam = dice(1, 6) if sneak_attack else 0 #Sneak attacks are guaranteed to deal at least 1d6 damage
 			dam = max(dam, min_dam)
 			dmgtype = self.weapon.dmg_type
@@ -823,6 +828,13 @@ class Player(Entity):
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
 			mon.take_damage(dam, self)
+			if dam > 0 and ench_type == "life stealing":
+				regain = min(self.MAX_HP - self.HP, div_rand(dam, 8))
+				self.HP += regain
+				if self.HP > self.MAX_HP:
+					self.HP = self.MAX_HP
+				if regain > 0:
+					self.g.print_msg(f"You regain {regain} HP.", "green")
 			self.adjust_duration("Invisible", -random.randint(0, 6))
 			if not sneak_attack:
 				for m in self.monsters_in_fov():
@@ -910,7 +922,6 @@ class Player(Entity):
 			menu.add_text("Use the w and s keys to scroll, press Enter to cancel")
 			menu.add_line()
 			num_display = min(len(chars), max_lines - 4)
-			
 			scroll_limit = max(0, len(strings) - num_display)
 			n = min(len(strings), num_display)
 			padsize = min(30, get_terminal_size().columns)
@@ -950,9 +961,8 @@ class Player(Entity):
 							menu.add_text("This weapon is heavy, so attacks are a bit less accurate.")
 						if item.finesse:
 							menu.add_text("This weapon is designed in a way that allows it to adapt to your character's style. Attack and damage rolls use the higher of your STR or DEX.")
-						if item.crit_thresh < 20:
-							diff = 21 - item.crit_thresh 
-							menu.add_text(f"Base critical chance with this weapon is {diff}x higher.")
+						if item.crit_chance > 1:
+							menu.add_text(f"Base critical chance on a hit with this weapon is {item.crit_chance}x higher.")
 						if item.crit_mult > 2:
 							menu.add_text(f"This weapon deals {item.crit_mult}x damage on a critical hit.")
 					elif isinstance(item, Armor):

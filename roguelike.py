@@ -228,11 +228,11 @@ if __name__ == "__main__":
 					refresh = True
 			moved = player.energy < lastenergy
 			if moved:
-				g.do_turn()
 				busy = player.resting or player.activity
+				g.do_turn()
+				g.autosave()
 				if not busy or player.ticks % 10 == 0:
 					g.draw_board()
-				g.autosave()
 			elif refresh:
 				g.draw_board()
 		g.delete_saved_game()

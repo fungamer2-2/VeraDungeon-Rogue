@@ -6,17 +6,28 @@ class Item:
 	description = "This is a generic item that does nothing special. You shouldn't see this in-game."
 	
 	def __init__(self, name, symbol):
-		self.name = name
-		self.orig_name = name
+		self._name = name
 		self.symbol = symbol
 		self.enchant = 0
 	
+	@property	
+	def name(self):
+		name = self._name
+		if isinstance(self, Enchantable) and self.ench_type:
+			name += f" of {self.ench_type}"
+		if self.enchant > 0:
+			name += f" +{self.enchant}"
+		return name
+		
+	@property	
+	def non_ench_name(self):
+		name = self._name
+		if self.enchant > 0:
+			name += f" +{self.enchant}"
+		return name
+	
 	def can_enchant(self):
 		return False
-		
-	def add_enchant(self):
-		self.enchant += 1
-		self.name = self.orig_name + f" +{self.enchant}"
 		
 	def use(self, player):
 		g = player.g
@@ -24,7 +35,11 @@ class Item:
 		return True
 		
 class Enchantable(Item):
-		
+	
+	def __init__(self, name, symbol):
+		super().__init__(name, symbol)
+		self.ench_type = None
+	
 	def can_enchant(self):
 		return self.enchant < 3
 		
@@ -271,9 +286,6 @@ class Armor(Enchantable):
 	def protect(self):
 		return self._protect + self.enchant
 		
-	def can_enchant(self):
-		return self.enchant < 3
-		
 	def use(self, player):
 		g = player.g
 		if player.armor and player.armor.name == self.name:
@@ -338,7 +350,7 @@ class PlateArmor(Armor):
 class Weapon(Enchantable):
 	description = "This is a weapon that can be used to attack enemies."
 	crit_mult = 2
-	crit_thresh = 20
+	crit_chance = 1
 	dmg_type = "default"
 	
 	def __init__(self, name, symbol, dmg, finesse=False, heavy=False, thrown=None):
@@ -347,9 +359,6 @@ class Weapon(Enchantable):
 		self.finesse = finesse
 		self.heavy = heavy #Heavy weapons get a -2 penalty on attack rolls
 		self.thrown = thrown #Either None or a 2-tuple representing short and long range
-	
-	def can_enchant(self):
-		return self.enchant < 3
 	
 	def use(self, player):
 		g = player.g
@@ -423,7 +432,7 @@ class Club(Weapon):
 		super().__init__("club", "!", (1, 4))
 		
 class Dagger(Weapon):
-	crit_thresh = 19
+	crit_chance = 2
 	dmg_type = "pierce"
 	
 	def __init__(self):
@@ -449,14 +458,14 @@ class Mace(Weapon):
 		super().__init__("mace", "T", (1, 6))
 
 class Shortsword(Weapon):
-	crit_thresh = 19
+	crit_chance = 2
 	dmg_type = "slash"
 	
 	def __init__(self):
 		super().__init__("shortsword", "i", (1, 6), finesse=True)
 
 class Longsword(Weapon):
-	crit_thresh = 19
+	crit_chance = 2
 	dmg_type = "slash"
 	
 	def __init__(self):
