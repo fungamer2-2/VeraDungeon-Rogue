@@ -636,6 +636,20 @@ class Player(Entity):
 						self.g.print_msg("You feel very sick.", "red")
 				elif one_in(3):
 					self.g.print_msg("You feel sick.", "red")
+		if self.engulfed_by:
+			if self.engulfed_by in self.grappled_by:
+				self.turns_engulfed += 1
+				if self.fire > 0:
+					self.fire -= 1
+					if self.fire <= 0:
+						self.g.print_msg("The water extinguishes the fire.")
+				if self.turns_engulfed > 1:
+					self.g.print_msg("You can't breathe, as you are engulfed by the water!", "red")
+					amount = 3 + (self.turns_engulfed - 1)**0.7
+					self.take_damage(div_rand(int(100*amount), 100))
+			else:
+				self.turns_engulfed = 0
+				self.engulfed_by = None
 		if self.fire > 0:
 			self.g.print_msg("The fire burns you!", "red")
 			dmg = dice(1, 10)+2
@@ -644,16 +658,6 @@ class Player(Entity):
 				self.fire -= 1
 				if self.fire <= 0:
 					self.g.print_msg("You manage to fully extinguish the fire.", "green")
-		if self.engulfed_by:
-			if self.engulfed_by in self.grappled_by:
-				self.turns_engulfed += 1
-				if self.turns_engulfed > 1:
-					self.g.print_msg("You can't breathe, as you are engulfed by the water!", "red")
-					amount = 3 + (self.turns_engulfed - 1)**0.7
-					self.take_damage(div_rand(int(100*amount), 100))
-			else:
-				self.turns_engulfed = 0
-				self.engulfed_by = None
 		if can_regen and self.HP < self.get_max_hp():
 			if self.ticks % 6 == 0:
 				self.HP += 1
