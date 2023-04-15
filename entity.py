@@ -156,7 +156,7 @@ class Entity:
 			self.g.board.swap_cache(old, (self.x, self.y))
 		else:
 			self.placed = True
-			self.g.board.set_cache(x, y)
+			self.g.board.set_cache(x, y, self)
 		
 	def swap_with(self, other):
 		tmp = (self.x, self.y)

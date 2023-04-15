@@ -303,7 +303,9 @@ class Game:
 			
 		def apply_rand_enchant(item):
 			if isinstance(item, Weapon):
-				enchants = ["speed", "armor piercing", "life stealing"]
+				enchants = ["speed", "life stealing"]
+				if item.dmg_type in ["pierce", "slash"]:
+					enchants.append("armor piercing")
 				item.ench_type = random.choice(enchants)
 				
 		if not one_in(8):	
@@ -401,20 +403,22 @@ class Game:
 	def monster_at(self, x, y, include_player=False):
 		if (x, y) == (self.player.x, self.player.y):
 			return include_player
-		return self.board.get_cache(x, y)
+		return self.board.get_mon_cache(x, y) is not None
 		
 	def get_monster(self, x, y):
-		if not self.monster_at(x, y):
+		if (x, y) == (self.player.x, self.player.y):
 			return None
-		return next((mon for mon in self.monsters if (mon.x, mon.y) == (x, y)), None)
+		return self.board.get_mon_cache(x, y)
 		
 	def remove_monster(self, m):
+		mons = self.monsters
 		try:
-			ind = self.monsters.index(m)
+			ind = mons.index(m)
 		except ValueError:
 			pass
 		else:
-			del self.monsters[ind]
+			mons[ind], mons[-1] = mons[-1], mons[ind]
+			del mons[-1]
 			self.board.unset_cache(m.x, m.y)
 	
 	def print_msg_if_sees(self, pos, msg, color=None):
@@ -597,9 +601,9 @@ class Game:
 		"Refreshes the monster collision cache"
 		board = self.board
 		board.clear_cache()
-		board.set_cache(self.player.x, self.player.y)
+		board.set_cache(self.player.x, self.player.y, self.player)
 		for m in self.monsters[:]:
-			board.set_cache(m.x, m.y)  
+			board.set_cache(m.x, m.y, m)  
 		
 	def do_turn(self):
 		while self.player.energy <= 0:

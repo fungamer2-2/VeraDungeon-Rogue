@@ -22,8 +22,8 @@ class Board:
 		self.clear_cache()
 		
 	def clear_cache(self):
-		self.collision_cache = [[False for x in range(self.cols)] for y in range(self.rows)]
-		
+		self.mons_cache = [[None for x in range(self.cols)] for y in range(self.cols)]
+
 	def line_between(self, pos1, pos2, skipfirst=False, skiplast=False):
 		x1, y1 = pos1
 		x2, y2 = pos2
@@ -108,22 +108,24 @@ class Board:
 	#A monster collision cache is used to improve the performance of detecting collisions with monsters
 	#This way, checking if there's a monster at a position can be O(1) instead of O(m)
 	
-	def set_cache(self, x, y):
-		self.collision_cache[y][x] = True
+	def set_cache(self, x, y, mon):
+		self.mons_cache[y][x] = mon
 		
 	def unset_cache(self, x, y):
-		self.collision_cache[y][x] = False
-			
-	def get_cache(self, x, y):
-		return self.collision_cache[y][x]
+		self.mons_cache[y][x] = None
+		
+	def get_mon_cache(self, x, y):
+		return self.mons_cache[y][x]
 		
 	def swap_cache(self, pos1, pos2):
+		if pos1 == pos2:
+			return
 		x1, y1 = pos1
 		x2, y2 = pos2
-		tmp = self.collision_cache[y1][x1]
-		self.collision_cache[y1][x1] = self.collision_cache[y2][x2]
-		self.collision_cache[y2][x2] = tmp
-	
+		tmp = self.mons_cache[y1][x1]
+		self.mons_cache[y1][x1] = self.mons_cache[y2][x2]
+		self.mons_cache[y2][x2] = tmp
+		
 	def blocks_sight(self, col, row):
 		if (col, row) == (self.g.player.x, self.g.player.y):
 			return False
@@ -132,7 +134,7 @@ class Board:
 	def is_passable(self, col, row):
 		if self.blocks_sight(col, row):
 			return False
-		return not self.collision_cache[row][col]
+		return not self.mons_cache[row][col]
 		
 	def generate(self):
 		self.data = [[Tile(False, "#") for x in range(self.cols)] for y in range(self.rows)]

@@ -669,10 +669,11 @@ class Player(Entity):
 				self.hp_drain -= 1
 				if self.hp_drain == 0:
 					self.g.print_msg("You have fully recovered from drain.", "green")
-		if self.ticks % 20 == 0:
-			if self.str_drain > 0 and one_in(20):
+		recover = 3 if self.has_effect("Rejuvenated") else 20
+		if self.ticks % recover == 0:
+			if self.str_drain > 0 and one_in(recover):
 				self.str_drain -= 1
-			if self.dex_drain > 0 and one_in(20):
+			if self.dex_drain > 0 and one_in(recover):
 				self.dex_drain -= 1
 		for e in list(self.effects.keys()):
 			self.adjust_duration(e, -1)
@@ -723,7 +724,9 @@ class Player(Entity):
 		return protect
 		
 	def apply_armor(self, dam):
-		return max(0, dam - random.randint(0, 4*self.get_protect())) 
+		roll1 = random.randint(0, 4*self.get_protect())
+		roll2 = random.randint(0, 2*self.get_protect())
+		return max(0, dam - max(roll1, roll2)) 
 		
 	def attack(self, dx, dy):
 		x, y = self.x + dx, self.y + dy
@@ -998,4 +1001,4 @@ class Player(Entity):
 							self.throw_item(item)
 							return
 		menu.close()
-		
+	

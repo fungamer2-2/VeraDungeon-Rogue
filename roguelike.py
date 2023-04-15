@@ -196,9 +196,9 @@ if __name__ == "__main__":
 						else:
 							g.print_msg("You descend deeper into the dungeon.")	
 						for m in player.monsters_in_fov():
-							if x_in_y(3, g.level):
+							if x_in_y(4, g.level):
 								continue
-							if dice(1, 20) + calc_mod(player.DEX) - 5 < m.passive_perc:
+							if dice(1, 20) + calc_mod(player.DEX) - 4 < m.passive_perc:
 								m.is_aware = True
 					else:
 						g.print_msg("You can't go down here.")

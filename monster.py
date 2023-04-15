@@ -981,7 +981,7 @@ class ShadowStrDrain(Attack):
 		
 	def on_hit(self, player, mon, dmg):
 		g = player.g
-		if player.STR > dice(1, 9):
+		if not one_in(3) and player.STR > dice(1, 9):
 			player.str_drain += 1
 			g.print_msg("You feel weaker.", "red")
 
@@ -1054,7 +1054,7 @@ class Specter(Monster):
 	WIS = 10
 	to_hit = 4
 	passive_perc = 10
-	eff_immunities = {"Asleep"}
+	eff_immunities = {"Charmed", "Asleep"}
 	symbol = "t"
 	attacks = [
 		SpecterDrain()
