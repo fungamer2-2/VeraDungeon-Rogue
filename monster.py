@@ -451,7 +451,7 @@ class Monster(Entity):
 	def on_alerted(self, target=None):
 		player = self.g.player
 		self.is_aware = True
-		if target is not None and target is not playet:
+		if target is not None and target is not player:
 			self.target = None
 		self.last_seen = (player.x, player.y)
 		self.reset_track_timer()
@@ -689,9 +689,9 @@ class Monster(Entity):
 			if spell.msg:
 				g.print_msg(spell.msg.format(self.name))
 			for x, y in line:
-			 	g.set_projectile_pos(x, y)
-			 	g.draw_board()
-			 	time.sleep(0.03)
+				 g.set_projectile_pos(x, y)
+				 g.draw_board()
+				 time.sleep(0.03)
 			g.clear_projectile()
 			spell.on_hit_effect(self, target)
 		elif spell.efftype == "cone":
@@ -1395,7 +1395,7 @@ class ElementalEngulf(SpellAttack):
 		if target.engulfed_by:
 			return
 		g = target.g
-		if not one_in(15) and roll + calc_mod(target.STR) >= 15:
+		if not one_in(15) and dice(1,20) + calc_mod(target.STR) >= 15: # changed undefined roll to dice(1,20)
 			g.print_msg(f"The {mon.name} attempts to engulf you, but you resist!", "yellow")
 		elif target.add_grapple(mon):
 			g.print_msg(f"The {mon.name} engulfs you! You can't breathe!", "red")
