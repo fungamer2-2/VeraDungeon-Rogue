@@ -446,7 +446,7 @@ class Handaxe(Weapon):
 		super().__init__("handaxe", "h", (1, 6), thrown=(4, 12))
 
 class Javelin(Weapon):
-	dmg_type = "bludgeon"
+	dmg_type = "pierce" # changed damage type to pierce (NapoleonBonatarte)
 	
 	def __init__(self):
 		super().__init__("javelin", "j", (1, 6), thrown=(6, 24))
