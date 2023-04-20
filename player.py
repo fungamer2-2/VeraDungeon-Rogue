@@ -727,10 +727,14 @@ class Player(Entity):
 		protect += self.passives["protect"]
 		return protect
 		
+	def protect_roll(self):
+		prot = self.get_protect()
+		roll1 = random.randint(0, 4*prot)
+		roll2 = random.randint(0, 2*prot)
+		return max(roll1, roll2)
+		
 	def apply_armor(self, dam):
-		roll1 = random.randint(0, 4*self.get_protect())
-		roll2 = random.randint(0, 2*self.get_protect())
-		return max(0, dam - max(roll1, roll2)) 
+		return max(0, dam - self.protect_roll()) 
 		
 	def attack(self, dx, dy):
 		x, y = self.x + dx, self.y + dy
@@ -834,14 +838,17 @@ class Player(Entity):
 					self.g.print_msg("Critical!", "green")
 			else:	
 				self.g.print_msg(f"You hit the {mon.name} but do no damage.")
+			if dam > 0 and ench_type == "life stealing" and one_in(7):
+				base = dam
+				fuzz = (base+1//2)
+				base += random.randint(0, fuzz) - random.randint(0, fuzz)
+				stolen = min(dice(4, 4), base)
+			
+				if stolen > 0:
+					self.g.print_msg(f"You steal an additional {stolen} HP.", "green")
+					dam += stolen
 			mon.take_damage(dam, self)
-			if dam > 0 and ench_type == "life stealing":
-				regain = min(self.MAX_HP - self.HP, div_rand(dam, 8))
-				self.HP += regain
-				if self.HP > self.MAX_HP:
-					self.HP = self.MAX_HP
-				if regain > 0:
-					self.g.print_msg(f"You regain {regain} HP.", "green")
+			
 			self.adjust_duration("Invisible", -random.randint(0, 6))
 			if not sneak_attack:
 				for m in self.monsters_in_fov():

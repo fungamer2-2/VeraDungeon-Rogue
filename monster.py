@@ -224,7 +224,7 @@ class Monster(Entity):
 			return False
 		return x_in_y(2, 5)
 		
-	def modify_damage(self, target, damage):
+	def modify_damage(self, target, damage, crit=False):
 		player = self.g.player
 		if target is player:
 			protect = target.armor.protect if target.armor else 0
@@ -233,7 +233,10 @@ class Monster(Entity):
 			protect = target.armor	
 		if protect > 0:
 			if target is player:
-				damage -= random.randint(0, protect*4) #Armor can reduce damage
+				dam_red = player.protect_roll()
+				if crit: #Monster crits against player don't increase damage, but ignores a portion of armor
+					dam_red = random.randint(0, dam_red)
+				damage -= dam_red
 			else:
 				damage -= random.randint(0, protect*2)
 			if damage <= 0:
@@ -286,7 +289,8 @@ class Monster(Entity):
 			base = dice(*attack.dmg)
 			if target is player:
 				base += attack.dmg_bonus(self, target)
-			damage = self.modify_damage(target, base)
+			crit = roll == 20 and dice(1, 20) + bonus >= AC
+			damage = self.modify_damage(target, base, crit)
 			the_target = "you" if target is player else f"the {target.name}"
 			if damage:		
 				self.g.print_msg_if_sees((target.x, target.y), attack.msg.format(self.name, the_target) + f" for {damage} damage!", "red" if target is player else "white")
